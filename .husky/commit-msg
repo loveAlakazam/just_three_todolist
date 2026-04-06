@@ -1,0 +1,36 @@
+#!/bin/sh
+
+commit_msg=$(cat "$1")
+
+# 허용되는 prefix 목록
+prefixes="feat|fix|docs|style|refactor|perf|test|chore|ci|revert|remove"
+
+# 형식 검증: prefix: 메시지
+if ! echo "$commit_msg" | head -1 | grep -qE "^($prefixes): .+"; then
+  echo ""
+  echo "=========================================="
+  echo "  커밋 메시지 형식 오류"
+  echo "=========================================="
+  echo ""
+  echo "  올바른 형식: prefix: 커밋메시지"
+  echo ""
+  echo "  허용 prefix:"
+  echo "    feat     - 새로운 기능 추가"
+  echo "    fix      - 버그 수정"
+  echo "    docs     - 문서 변경"
+  echo "    style    - 코드 스타일 변경"
+  echo "    refactor - 리팩터링"
+  echo "    perf     - 성능 개선"
+  echo "    test     - 테스트 코드"
+  echo "    chore    - 기타 변경"
+  echo "    ci       - CI 설정 변경"
+  echo "    revert   - 커밋 되돌리기"
+  echo "    remove   - 파일/코드 제거"
+  echo ""
+  echo "  예시: feat: 로그인 화면 UI 구현"
+  echo ""
+  echo "  입력된 메시지: $commit_msg"
+  echo "=========================================="
+  echo ""
+  exit 1
+fi

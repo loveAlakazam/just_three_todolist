@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx husky:*)",
+      "Bash(chmod +x:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(echo \"exit code: $?\")",
+      "Bash(git reset:*)"
+    ]
+  }
+}

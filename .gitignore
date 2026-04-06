@@ -1,6 +1,9 @@
 # .env
 .env
 
+# node (husky)
+node_modules/
+
 # claude
 CLAUDE.local.md
 
