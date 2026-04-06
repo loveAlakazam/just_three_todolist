@@ -1,3 +1,6 @@
+# .env
+.env
+
 gradle-wrapper.jar
 /.gradle
 /captures/
