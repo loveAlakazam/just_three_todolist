@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../shared/widgets/segmented_progress_bar.dart';
 import '../../../shared/widgets/todo_item_widget.dart';
 import '../../calendar/view/calendar_screen.dart';
+import '../../profile/view/my_screen.dart';
 
 /// Todo 화면 (메인).
 ///
@@ -53,8 +54,9 @@ class _TodoScreenState extends State<TodoScreen> {
           MaterialPageRoute<void>(builder: (_) => const CalendarScreen()),
         );
       case 2:
-        // TODO(my-page): MyScreen 구현 후 pushReplacement 연결.
-        break;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => const MyScreen()),
+        );
     }
   }
 
