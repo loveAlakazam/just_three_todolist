@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../shared/widgets/segmented_progress_bar.dart';
 import '../../../shared/widgets/todo_item_widget.dart';
+import '../../calendar/view/calendar_screen.dart';
 
 /// Todo 화면 (메인).
 ///
@@ -36,7 +37,26 @@ class _TodoScreenState extends State<TodoScreen> {
   );
 
   /// 현재 선택된 BottomNavigation 인덱스 (0: Calendar, 1: To Do, 2: My)
-  int _currentTabIndex = 1;
+  static const int _tabIndex = 1;
+
+  /// BottomNavigationBar 탭 핸들러.
+  ///
+  /// 스펙(`.claude/agents/ui-implementor.md` `공유 위젯: BottomNavigationBar` 절):
+  /// - 동일 탭 재선택은 no-op.
+  /// - 다른 탭은 백 스택을 쌓지 않도록 `pushReplacement`로 화면 전환.
+  /// - go_router 도입 후 `context.go(...)`로 교체 예정.
+  void _onTabTapped(int index) {
+    if (index == _tabIndex) return;
+    switch (index) {
+      case 0:
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => const CalendarScreen()),
+        );
+      case 2:
+        // TODO(my-page): MyScreen 구현 후 pushReplacement 연결.
+        break;
+    }
+  }
 
   bool get _isToday {
     final DateTime now = DateTime.now();
@@ -165,8 +185,8 @@ class _TodoScreenState extends State<TodoScreen> {
 
   Widget _buildBottomNav() {
     return BottomNavigationBar(
-      currentIndex: _currentTabIndex,
-      onTap: (int idx) => setState(() => _currentTabIndex = idx),
+      currentIndex: _tabIndex,
+      onTap: _onTabTapped,
       type: BottomNavigationBarType.fixed,
       backgroundColor: Colors.white,
       selectedItemColor: const Color(0xFF512DA8),

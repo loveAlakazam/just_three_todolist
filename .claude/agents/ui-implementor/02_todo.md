@@ -44,6 +44,18 @@ Scaffold (bg: #f3f4eb)
   - 그 외 상태에서는 `Visibility(maintainSize: true)`로 자리만 유지하고 숨김 → 행 너비 일정
 - `TextField`: `maxLength: 20`, `hintText: "목표를 입력해주세요"`
 
+## BottomNavigationBar 동작
+
+- `currentIndex = 1` (To Do 활성).
+- 탭별 이동:
+  | 인덱스 | 라벨 | 동작 |
+  |--------|------|------|
+  | 0 | Calendar | `CalendarScreen`으로 화면 전환 (replace) |
+  | 1 | To Do | 현재 화면 — no-op |
+  | 2 | My | `MyScreen`으로 화면 전환 (replace) — 미구현 시 `// TODO(my-page)` 주석 |
+- go_router 도입 전: `Navigator.pushReplacement(MaterialPageRoute(builder: (_) => const CalendarScreen()))`.
+- 공통 규칙은 `.claude/agents/ui-implementor.md` `공유 위젯: BottomNavigationBar` 절 참고.
+
 ## v1.0.0 결정사항
 
 - 달성 시 목록 숨김 없음 (달성해도 계속 표시) ※ 와이어프레임(todo-02)에서는 숨김처리로 표시되나, v1.0.0에서 보류됨 — 스펙 우선

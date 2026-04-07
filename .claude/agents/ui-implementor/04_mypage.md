@@ -31,6 +31,18 @@ Scaffold (bg: #f3f4eb)
   - 타이틀: "탈퇴하시겠습니까?"
   - 버튼: "취소" (닫기) / "확인" (onConfirm 콜백)
 
+### BottomNavigationBar 동작
+
+- `currentIndex = 2` (My 활성).
+- 탭별 이동:
+  | 인덱스 | 라벨 | 동작 |
+  |--------|------|------|
+  | 0 | Calendar | `CalendarScreen`으로 화면 전환 (replace) |
+  | 1 | To Do | `TodoScreen`으로 화면 전환 (replace) |
+  | 2 | My | 현재 화면 — no-op |
+- go_router 도입 전: `Navigator.pushReplacement(MaterialPageRoute(builder: (_) => const CalendarScreen()))`.
+- 공통 규칙은 `.claude/agents/ui-implementor.md` `공유 위젯: BottomNavigationBar` 절 참고.
+
 ---
 
 ## 프로필 편집 화면

@@ -70,6 +70,13 @@
 | To Do | `#512DA8` 배경 + 흰 텍스트 | 기본 텍스트 |
 | My | - | 기본 텍스트 |
 
+#### 탭 동작
+- `currentIndex = 1` (To Do 활성).
+- `0: Calendar` 탭 → `CalendarScreen`으로 화면 전환 (replace).
+- `1: To Do` 탭 → 현재 화면, no-op.
+- `2: My` 탭 → `MyScreen`으로 화면 전환 (replace). MyScreen 미구현 시 코드 단에서 `// TODO(my-page)` 주석.
+- go_router 도입 전: `Navigator.pushReplacement(MaterialPageRoute)`.
+
 ---
 
 ## 구현 계획
