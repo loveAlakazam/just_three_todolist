@@ -6,7 +6,9 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(echo \"exit code: $?\")",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter pub:*)"
     ]
   }
 }
