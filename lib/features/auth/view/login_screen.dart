@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-
-import '../../../shared/widgets/google_sign_in_button.dart';
+import 'package:sign_in_button/sign_in_button.dart';
 
 /// 로그인 화면.
 ///
 /// 레이아웃:
 /// Scaffold → SafeArea → Column
 ///   ├─ Expanded (로고)
-///   ├─ GoogleSignInButton
+///   ├─ SignInButton (Buttons.google)
 ///   └─ SizedBox (하단 여백)
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -30,7 +29,9 @@ class LoginScreen extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: GoogleSignInButton(
+              child: SignInButton(
+                Buttons.google,
+                text: 'Google로 로그인',
                 onPressed: () => _handleGoogleSignIn(context),
               ),
             ),
