@@ -1,5 +1,11 @@
 # 04. 마이페이지 화면
 
+## 작업 브랜치
+
+- 마이페이지(My 탭, 프로필 편집) UI 구현 및 개발 작업은 **반드시 `feature/my-page` 브랜치에서 진행**한다.
+- 작업 시작 전 현재 브랜치를 확인하고, 다른 브랜치라면 `feature/my-page`로 전환한 후 작업한다.
+- `feature/my-page` 브랜치가 없다면 `main`에서 분기하여 생성한다.
+
 ## My 탭 초기화면
 
 **파일**: `lib/features/profile/view/my_screen.dart`
