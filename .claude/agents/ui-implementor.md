@@ -33,7 +33,7 @@ MVVM 아키텍처에서 **View** 역할만 담당한다.
 ### 색상
 | 토큰 | Hex | 용도 |
 |------|-----|------|
-| `bgColor` | `#dee0df` | 모든 화면 배경색 (`Scaffold.backgroundColor`) |
+| `bgColor` | `#f3f4eb` | 모든 화면 배경색 (`Scaffold.backgroundColor`) |
 | `primaryColor` | `#512DA8` | 메인 텍스트, 버튼, 활성 탭, 강조 색상 |
 
 ### 달성률 스티커 / 게이지바 색상
@@ -51,7 +51,7 @@ MVVM 아키텍처에서 **View** 역할만 담당한다.
 - `ThemeData.fontFamily` 전역 설정으로 적용
 
 ### 공통 규칙
-- 모든 화면: `Scaffold(backgroundColor: Color(0xFFDEE0DF))` + `SafeArea`
+- 모든 화면: `Scaffold(backgroundColor: Color(0xFFF3F4EB))` + `SafeArea`
 - 기본 텍스트 색상: `#512DA8`
 - `ElevatedButton` primary: `#512DA8` 배경 + 흰 텍스트
 - `BottomNavigationBar`: 활성 탭 `#512DA8` 배경 + 흰 텍스트

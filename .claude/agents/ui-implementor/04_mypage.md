@@ -7,7 +7,7 @@
 ### 레이아웃
 
 ```
-Scaffold (bg: #dee0df)
+Scaffold (bg: #f3f4eb)
 └─ SafeArea
    └─ Column
       ├─ Row
@@ -34,7 +34,7 @@ Scaffold (bg: #dee0df)
 ### 레이아웃
 
 ```
-Scaffold (bg: #dee0df)
+Scaffold (bg: #f3f4eb)
 └─ SafeArea
    └─ Column
       ├─ Stack

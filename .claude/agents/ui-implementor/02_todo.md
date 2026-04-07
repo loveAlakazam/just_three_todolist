@@ -5,7 +5,7 @@
 ## 레이아웃
 
 ```
-Scaffold (bg: #dee0df)
+Scaffold (bg: #f3f4eb)
 └─ SafeArea
    └─ Column
       ├─ Text (날짜: YYYY.MM.DD, color: #512DA8)
