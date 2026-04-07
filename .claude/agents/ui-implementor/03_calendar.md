@@ -49,6 +49,18 @@ Scaffold (bg: #f3f4eb)
 - 최소 월: `DateTime(2026, 4)` → 좌측 버튼 `onPressed: null`
 - 우측 버튼: 항상 활성
 
+## BottomNavigationBar 동작
+
+- `currentIndex = 0` (Calendar 활성).
+- 탭별 이동:
+  | 인덱스 | 라벨 | 동작 |
+  |--------|------|------|
+  | 0 | Calendar | 현재 화면 — no-op |
+  | 1 | To Do | `TodoScreen`으로 화면 전환 (replace) |
+  | 2 | My | `MyScreen`으로 화면 전환 (replace) — 미구현 시 `// TODO(my-page)` 주석 |
+- go_router 도입 전: `Navigator.pushReplacement(MaterialPageRoute(builder: (_) => const TodoScreen()))`.
+- 공통 규칙은 `.claude/agents/ui-implementor.md` `공유 위젯: BottomNavigationBar` 절 참고.
+
 ## ? 버튼 팝업
 
 - 탭 시 `showDialog(AlertDialog)` 표시

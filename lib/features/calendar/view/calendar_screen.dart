@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/widgets/calendar_grid.dart';
+import '../../todo/view/todo_screen.dart';
 
 /// 캘린더 화면.
 ///
@@ -66,7 +67,26 @@ class _CalendarScreenState extends State<CalendarScreen> {
   final Map<int, double> _achievementRates = <int, double>{};
 
   /// 현재 선택된 BottomNavigation 인덱스 (0: Calendar, 1: To Do, 2: My)
-  int _currentTabIndex = 0;
+  static const int _tabIndex = 0;
+
+  /// BottomNavigationBar 탭 핸들러.
+  ///
+  /// 스펙(`.claude/agents/ui-implementor.md` `공유 위젯: BottomNavigationBar` 절):
+  /// - 동일 탭 재선택은 no-op.
+  /// - 다른 탭은 백 스택을 쌓지 않도록 `pushReplacement`로 화면 전환.
+  /// - go_router 도입 후 `context.go(...)`로 교체 예정.
+  void _onTabTapped(int index) {
+    if (index == _tabIndex) return;
+    switch (index) {
+      case 1:
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => const TodoScreen()),
+        );
+      case 2:
+        // TODO(my-page): MyScreen 구현 후 pushReplacement 연결.
+        break;
+    }
+  }
 
   bool get _canGoPrev => _displayMonth.isAfter(_minMonth);
 
@@ -89,8 +109,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     int yellow = 0;
     int green = 0;
     int blue = 0;
-    final int daysInMonth =
-        DateTime(_displayMonth.year, _displayMonth.month + 1, 0).day;
+    final int daysInMonth = DateTime(
+      _displayMonth.year,
+      _displayMonth.month + 1,
+      0,
+    ).day;
     for (int day = 1; day <= daysInMonth; day++) {
       final double rate = _achievementRates[day] ?? 0;
       if (rate <= 0) continue;
@@ -124,7 +147,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   _buildLegendBar(),
                   const SizedBox(height: 20),
                   _buildWeekdayHeader(),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 5),
                   Expanded(
                     child: CalendarGrid(
                       displayMonth: _displayMonth,
@@ -135,11 +158,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ],
               ),
             ),
-            Positioned(
-              top: 12,
-              right: 16,
-              child: _buildHelpButton(),
-            ),
+            Positioned(top: 12, right: 16, child: _buildHelpButton()),
           ],
         ),
       ),
@@ -247,7 +266,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                   color: _primary,
                 ),
               ),
@@ -330,8 +349,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
   // ────────────────────── BottomNavigationBar ──────────────────────
   Widget _buildBottomNav() {
     return BottomNavigationBar(
-      currentIndex: _currentTabIndex,
-      onTap: (int idx) => setState(() => _currentTabIndex = idx),
+      currentIndex: _tabIndex,
+      onTap: _onTabTapped,
       type: BottomNavigationBarType.fixed,
       backgroundColor: Colors.white,
       selectedItemColor: _primary,
@@ -398,10 +417,7 @@ class _GuideRow extends StatelessWidget {
         Expanded(
           child: Text(
             description,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF333333),
-            ),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF333333)),
           ),
         ),
       ],

@@ -115,9 +115,26 @@ lib/
 **파일**: `lib/shared/widgets/app_bottom_nav_bar.dart`
 - Todo, Calendar, My 3개 화면에서 공유 → `shared/widgets/`에 배치
 - 파라미터: `currentIndex`, `onTap`
-- 탭 구성: `Calendar` | `To Do` | `My`
+- 탭 구성 (인덱스 고정): `0: Calendar` | `1: To Do` | `2: My`
 - 활성 탭: `#512DA8` 배경 + 흰 텍스트
 - 비활성 탭: 기본 텍스트
+
+#### 탭 → 화면 매핑
+
+| 인덱스 | 라벨 | 이동 대상 화면 | 파일 |
+|--------|------|----------------|------|
+| 0 | Calendar | `CalendarScreen` | `lib/features/calendar/view/calendar_screen.dart` |
+| 1 | To Do | `TodoScreen` | `lib/features/todo/view/todo_screen.dart` |
+| 2 | My | `MyScreen` | `lib/features/profile/view/my_screen.dart` |
+
+#### 네비게이션 동작 규칙
+
+- 현재 화면과 동일한 탭을 다시 탭한 경우: **무시** (no-op).
+- 다른 탭으로 이동: 백 스택을 쌓지 않도록 **화면 전환(replace)** 방식 사용.
+  - go_router 도입 전: `Navigator.pushReplacement(MaterialPageRoute)`
+  - go_router 도입 후: `context.go('/calendar' | '/todo' | '/my')`
+- 이동 직후 새 화면의 BottomNavigationBar `currentIndex`는 해당 탭을 활성 상태로 유지한다.
+- My 탭(`MyScreen`)이 아직 미구현인 경우: 코드 단에서는 `// TODO(my-page)` 주석으로 자리만 두고 실제 네비게이션은 비워둔다. 단, 스펙상 위 매핑은 확정값이므로 이후 구현 시 위 표를 따른다.
 
 ---
 

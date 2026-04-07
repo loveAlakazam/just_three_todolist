@@ -46,25 +46,31 @@ class CalendarGrid extends StatelessWidget {
     final int rowCount = (totalCells / 7).ceil();
     final int gridCount = rowCount * 7;
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 7,
-        childAspectRatio: 1,
-      ),
-      itemCount: gridCount,
-      itemBuilder: (BuildContext context, int index) {
-        final int day = index - firstWeekday + 1;
-        if (day < 1 || day > daysInMonth) {
-          return _emptyCell();
-        }
-        final bool isToday = year == today.year &&
-            month == today.month &&
-            day == today.day;
-        final double rate = achievementRates[day] ?? 0;
-        return _dayCell(day: day, isToday: isToday, rate: rate);
+    // 가용 높이를 행 수로 나눠 셀 높이를 결정 → 그리드가 항상 부모 영역을 꽉 채운다.
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double cellHeight = constraints.maxHeight / rowCount;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            mainAxisExtent: cellHeight,
+          ),
+          itemCount: gridCount,
+          itemBuilder: (BuildContext context, int index) {
+            final int day = index - firstWeekday + 1;
+            if (day < 1 || day > daysInMonth) {
+              return _emptyCell();
+            }
+            final bool isToday = year == today.year &&
+                month == today.month &&
+                day == today.day;
+            final double rate = achievementRates[day] ?? 0;
+            return _dayCell(day: day, isToday: isToday, rate: rate);
+          },
+        );
       },
     );
   }
@@ -82,33 +88,46 @@ class CalendarGrid extends StatelessWidget {
     required bool isToday,
     required double rate,
   }) {
+    // 날짜 숫자: 세로 상단 + 가로 중앙 정렬.
+    // 오늘 강조 원은 숫자를 감싸는 형태로 상단에 함께 배치.
+    // 스티커는 셀 하단 중앙.
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: const Color(0xFFD8D5C8), width: 0.5),
       ),
       child: Stack(
-        alignment: Alignment.center,
         children: <Widget>[
-          if (isToday)
-            Container(
-              width: 28,
-              height: 28,
-              decoration: const BoxDecoration(
-                color: _primary,
-                shape: BoxShape.circle,
+          Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isToday ? _primary : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '$day',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isToday
+                        ? Colors.white
+                        : const Color(0xFF333333),
+                  ),
+                ),
               ),
             ),
-          Text(
-            '$day',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: isToday ? Colors.white : const Color(0xFF333333),
-            ),
           ),
-          Positioned(
-            bottom: 6,
-            child: AchievementSticker(rate: rate, size: 8),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: AchievementSticker(rate: rate, size: 8),
+            ),
           ),
         ],
       ),
