@@ -2,10 +2,16 @@
 
 **파일**: `lib/features/todo/view/todo_screen.dart`
 
+## 작업 브랜치
+
+- Todo 화면 UI 구현 및 개발 작업은 **반드시 `feature/todo` 브랜치에서 진행**한다.
+- 작업 시작 전 현재 브랜치를 확인하고, 다른 브랜치라면 `feature/todo`로 전환한 후 작업한다.
+- `feature/todo` 브랜치가 없다면 `main`에서 분기하여 생성한다.
+
 ## 레이아웃
 
 ```
-Scaffold (bg: #dee0df)
+Scaffold (bg: #f3f4eb)
 └─ SafeArea
    └─ Column
       ├─ Text (날짜: YYYY.MM.DD, color: #512DA8)
