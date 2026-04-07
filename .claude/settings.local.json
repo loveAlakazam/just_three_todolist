@@ -13,7 +13,9 @@
       "Bash(git push:*)",
       "Bash(brew install:*)",
       "Bash(gh pr:*)",
-      "WebFetch(domain:pub.dev)"
+      "WebFetch(domain:pub.dev)",
+      "Bash(flutter devices:*)",
+      "Bash(flutter build:*)"
     ]
   }
 }
