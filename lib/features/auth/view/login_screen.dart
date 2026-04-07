@@ -6,7 +6,7 @@ import 'package:sign_in_button/sign_in_button.dart';
 /// 레이아웃:
 /// Scaffold → SafeArea → Column
 ///   ├─ Expanded (로고)
-///   ├─ SignInButton (Buttons.google)
+///   ├─ SignInButtonBuilder (Google 스타일, 전체 가로폭)
 ///   └─ SizedBox (하단 여백)
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -27,12 +27,39 @@ class LoginScreen extends StatelessWidget {
                 ),
               ),
             ),
+            // Google 로그인 버튼: 좌우 10px 여백, 높이 64.
+            //
+            // `SignInButton(Buttons.google, ...)`은 내부적으로 height: 36,
+            // maxWidth: 220이 하드코딩되어 크기 변경이 불가능하므로,
+            // 같은 패키지의 [SignInButtonBuilder]를 직접 사용해 Google 스타일을
+            // 재현하면서 로고 / 텍스트 / 버튼 높이를 키움.
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: SignInButton(
-                Buttons.google,
-                text: 'Google로 로그인',
-                onPressed: () => _handleGoogleSignIn(context),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: SizedBox(
+                width: double.infinity,
+                height: 64,
+                child: SignInButtonBuilder(
+                  text: 'Google로 로그인',
+                  textColor: const Color(0xFF1F1F1F),
+                  backgroundColor: Colors.white,
+                  fontSize: 20,
+                  height: 64,
+                  width: double.infinity,
+                  onPressed: () => _handleGoogleSignIn(context),
+                  image: Container(
+                    margin: const EdgeInsets.only(right: 14),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Image(
+                        image: AssetImage(
+                          'assets/logos/google_light.png',
+                          package: 'sign_in_button',
+                        ),
+                        height: 44,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 48),
