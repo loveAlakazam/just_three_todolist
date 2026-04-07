@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 /// Todo 1개 행.
 ///
 /// - 왼쪽: 목표 입력 [TextField] (한글 기준 최대 20자)
-/// - 오른쪽: 달성 체크 버튼 (단방향 — 체크 후 해제 불가)
+/// - 가운데: 달성 체크 버튼 (양방향 토글 — 체크 후 해제 가능)
+/// - 오른쪽: 삭제 버튼 (오늘 날짜 + 미달성 상태에서만 노출)
 ///
 /// [isEditable]
-/// - `true`  → 오늘 날짜: TextField 활성 + 달성 버튼 활성
-/// - `false` → 과거 날짜: TextField `enabled: false` + 달성 버튼 비활성
+/// - `true`  → 오늘 날짜: TextField 활성 + 달성 버튼 토글 가능 + 삭제 가능 (미달성에 한해)
+/// - `false` → 과거 날짜: TextField `enabled: false` + 달성 버튼/삭제 모두 비활성
 class TodoItemWidget extends StatefulWidget {
   const TodoItemWidget({
     super.key,
@@ -16,6 +17,7 @@ class TodoItemWidget extends StatefulWidget {
     required this.isEditable,
     this.onChanged,
     this.onToggle,
+    this.onDelete,
   });
 
   /// 목표 텍스트 (초기값 / 외부 동기화 값).
@@ -30,8 +32,11 @@ class TodoItemWidget extends StatefulWidget {
   /// 텍스트 변경 콜백.
   final ValueChanged<String>? onChanged;
 
-  /// 달성 버튼 토글 콜백 (단방향).
+  /// 달성 버튼 토글 콜백 (양방향).
   final VoidCallback? onToggle;
+
+  /// 목표 삭제 콜백. 오늘 날짜이고 아직 달성되지 않은 경우에만 호출 가능.
+  final VoidCallback? onDelete;
 
   @override
   State<TodoItemWidget> createState() => _TodoItemWidgetState();
@@ -66,7 +71,10 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final bool canToggle = widget.isEditable && !widget.isCompleted;
+    // 오늘 날짜이면 체크/해제 양방향 토글 가능, 과거 날짜이면 비활성.
+    final bool canToggle = widget.isEditable;
+    // 미달성 상태의 오늘 목표만 삭제 가능. 달성된 목표 / 과거 날짜는 삭제 불가.
+    final bool canDelete = widget.isEditable && !widget.isCompleted;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -114,7 +122,47 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
             enabled: canToggle,
             onTap: widget.onToggle,
           ),
+          const SizedBox(width: 8),
+          // 삭제 버튼 (canDelete가 false인 경우 자리만 유지하고 숨김)
+          SizedBox(
+            width: 32,
+            height: 56,
+            child: Visibility(
+              visible: canDelete,
+              maintainSize: true,
+              maintainState: true,
+              maintainAnimation: true,
+              child: _DeleteButton(onTap: widget.onDelete),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _DeleteButton extends StatelessWidget {
+  const _DeleteButton({required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: const SizedBox(
+          width: 32,
+          height: 32,
+          child: Icon(
+            Icons.close,
+            size: 22,
+            color: Color(0xFF9E9E9E),
+            semanticLabel: '목표 삭제',
+          ),
+        ),
       ),
     );
   }

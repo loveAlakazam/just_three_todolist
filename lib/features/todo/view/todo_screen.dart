@@ -55,9 +55,20 @@ class _TodoScreenState extends State<TodoScreen> {
   }
 
   void _toggleComplete(int index) {
-    final _TodoDraft todo = _todos[index];
-    if (todo.isCompleted) return; // 단방향 (해제 불가)
-    setState(() => todo.isCompleted = true);
+    // 오늘 날짜 목표는 체크/해제 양방향 토글 가능.
+    // 과거 날짜는 [_isToday]가 false이므로 위젯 단에서 onTap이 차단된다.
+    setState(() {
+      final _TodoDraft todo = _todos[index];
+      todo.isCompleted = !todo.isCompleted;
+    });
+  }
+
+  void _deleteTodo(int index) {
+    // 미달성 상태의 오늘 목표만 삭제 허용. 위젯 단에서 onTap이 이미 막혀 있지만
+    // 안전하게 한 번 더 검사한다.
+    if (!_isToday) return;
+    if (_todos[index].isCompleted) return;
+    setState(() => _todos.removeAt(index));
   }
 
   void _updateText(int index, String value) {
@@ -113,6 +124,7 @@ class _TodoScreenState extends State<TodoScreen> {
                         isEditable: _isToday,
                         onChanged: (String v) => _updateText(i, v),
                         onToggle: () => _toggleComplete(i),
+                        onDelete: () => _deleteTodo(i),
                       );
                     }),
                   ),
