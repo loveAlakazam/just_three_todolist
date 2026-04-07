@@ -9,7 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  sign_in_button: ^4.1.0
+  font_awesome_flutter: ^10.6.0
+  sign_in_button: 4.0.1
 
 dev_dependencies:
   flutter_test:
