@@ -8,7 +8,10 @@
       "Bash(echo \"exit code: $?\")",
       "Bash(git reset:*)",
       "Bash(flutter analyze:*)",
-      "Bash(flutter pub:*)"
+      "Bash(flutter pub:*)",
+      "Bash(git fetch:*)",
+      "Bash(git push:*)",
+      "Bash(brew install:*)"
     ]
   }
 }
