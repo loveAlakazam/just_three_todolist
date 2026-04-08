@@ -1,11 +1,13 @@
 현재 브랜치의 변경사항을 분석하고 리뷰어가 이해하기 쉬운 Pull Request를 생성하거나, 이미 열려 있는 PR의 본문을 최신 커밋에 맞춰 갱신한다.
 
+> **베이스 브랜치**: 프로젝트는 git-flow를 따르므로 feature PR의 base는 **`develop`**이다. 상세 규칙은 `.claude/rules/git-flow.md` 참조.
+
 ## 절차
 
 1. **브랜치 상태 확인**
-   - `git branch --show-current`로 현재 브랜치 확인 (main/master면 중단하고 알림)
+   - `git branch --show-current`로 현재 브랜치 확인 (main/master/develop면 중단하고 알림)
    - `git status`로 working tree clean 확인 (uncommitted 변경 있으면 먼저 커밋하도록 안내)
-   - `git fetch origin main`으로 베이스 브랜치 최신화
+   - `git fetch origin develop`으로 베이스 브랜치 최신화
 
 2. **기존 PR 존재 여부 확인** ⭐
    - `gh pr view --json number,url,title,body,state --jq '{number,url,title,state}'`로 현재 브랜치에 연결된 PR 조회
@@ -15,9 +17,9 @@
      - **PR 있음 (MERGED/CLOSED)** → 사용자에게 알리고 신규 생성 여부 확인
 
 3. **변경 내용 수집**
-   - `git log --oneline main..HEAD`로 이 브랜치의 전체 커밋 히스토리 확인
-   - `git diff main...HEAD --stat`로 변경 파일 개요 파악
-   - `git diff main...HEAD`로 실제 변경 내용 분석
+   - `git log --oneline develop..HEAD`로 이 브랜치의 전체 커밋 히스토리 확인
+   - `git diff develop...HEAD --stat`로 변경 파일 개요 파악
+   - `git diff develop...HEAD`로 실제 변경 내용 분석
    - ⚠️ 최신 커밋 하나가 아니라 **브랜치에 포함된 모든 커밋**을 분석해야 함
 
 4. **원격 브랜치 동기화**
@@ -32,7 +34,7 @@
 
 6. **PR 본문 작성** (아래 템플릿 사용)
 
-7. **PR 생성**: `gh pr create --base main --title "..." --body "$(cat <<'EOF' ... EOF)"`
+7. **PR 생성**: `gh pr create --base develop --title "..." --body "$(cat <<'EOF' ... EOF)"`
 
 8. **기존 PR 업데이트** (기존 PR이 OPEN일 때)
    - 신규 커밋이 PR 본문에 반영되도록 본문을 재작성 (변경 그룹 추가/수정/삭제)
@@ -139,10 +141,10 @@ EOF
 
 - PR 제목/본문 모두 **한글**로 작성 (파일 경로, 코드 식별자 제외)
 - prefix는 영어 소문자
-- 베이스 브랜치는 기본적으로 `main`
+- 베이스 브랜치는 기본적으로 **`develop`** (git-flow). `main`은 `/release` 커맨드 전용
 - PR 생성/업데이트 전 반드시 `git push`로 원격 동기화
 - 본문은 반드시 HEREDOC으로 전달해 이스케이프 문제 방지
-- main/master 브랜치에서는 PR 생성하지 않음 (작업 브랜치에서만)
+- main/master/develop 브랜치에서는 PR 생성하지 않음 (feature 브랜치에서만)
 - `gh pr create --draft` 옵션은 사용자가 명시적으로 요청할 때만 사용
 - 생성/업데이트 후 PR URL을 반환해 사용자가 바로 확인할 수 있게 함
 - 이미 MERGED/CLOSED된 PR은 자동 업데이트하지 않고 사용자에게 신규 생성 여부를 먼저 확인

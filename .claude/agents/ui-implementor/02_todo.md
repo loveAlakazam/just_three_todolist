@@ -2,11 +2,17 @@
 
 **파일**: `lib/features/todo/view/todo_screen.dart`
 
-## 작업 브랜치
+## 작업 브랜치 (git-flow)
 
 - Todo 화면 UI 구현 및 개발 작업은 **반드시 `feature/todo` 브랜치에서 진행**한다.
 - 작업 시작 전 현재 브랜치를 확인하고, 다른 브랜치라면 `feature/todo`로 전환한 후 작업한다.
-- `feature/todo` 브랜치가 없다면 `main`에서 분기하여 생성한다.
+- `feature/todo` 브랜치가 없다면 **`develop`에서 분기**하여 생성한다 (`main`에서 분기 금지).
+  ```bash
+  git checkout develop && git pull origin develop
+  git checkout -b feature/todo
+  ```
+- 작업 완료 후 PR 생성 시 **base 브랜치는 `develop`**으로 지정한다. `/pull-request` 커맨드는 이미 `develop`을 기본 base로 사용한다.
+- 전체 브랜치/릴리즈 전략은 `.claude/rules/git-flow.md` 참조.
 
 ## 레이아웃
 

@@ -17,7 +17,23 @@
       "Bash(flutter devices:*)",
       "Bash(flutter build:*)",
       "Bash(gh repo:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(gh api:*)",
+      "Bash(git log:*)",
+      "Bash(grep -iE '\\(\\\\.env|secret|credential|\\\\.pem|\\\\.key\\)$')",
+      "Bash(ls:*)",
+      "Bash(git config:*)",
+      "Bash(printf 'refs/heads/main 1111111111111111111111111111111111111111 refs/heads/main 2222222222222222222222222222222222222222\\\\n')",
+      "Bash(.githooks/pre-push)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(npm run:*)",
+      "Bash(printf 'refs/heads/main abc1234567890abc1234567890abc1234567890a refs/heads/main def4567890abcdef4567890abcdef4567890abcd\\\\n')",
+      "Bash(sh -e .husky/pre-push)",
+      "Bash(git symbolic-ref:*)",
+      "Bash(printf 'refs/heads/develop 1111111111111111111111111111111111111111 refs/heads/develop 0000000000000000000000000000000000000000\\\\n')",
+      "Bash(.husky/_/pre-push)",
+      "Bash(printf '\\(delete\\) 0000000000000000000000000000000000000000 refs/heads/develop 1111111111111111111111111111111111111111\\\\n')",
+      "Bash(.husky/_/pre-commit)"
     ]
   }
 }

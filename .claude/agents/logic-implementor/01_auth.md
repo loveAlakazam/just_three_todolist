@@ -1,7 +1,15 @@
 # 01. 로그인 / 인증 비즈니스 로직
 
-## 작업 브랜치
-`feature/login`
+## 작업 브랜치 (git-flow)
+
+- 브랜치: `feature/login`
+- **`develop`에서 분기**하여 생성한다 (`main`에서 분기 금지):
+  ```bash
+  git checkout develop && git pull origin develop
+  git checkout -b feature/login
+  ```
+- PR base 브랜치는 **`develop`**. 릴리즈는 `/release` 커맨드가 별도로 처리한다.
+- 자세한 규칙은 `.claude/rules/git-flow.md` 및 `00_overview.md` §7 참조.
 
 ## 대상 View
 - `lib/features/auth/view/login_screen.dart`

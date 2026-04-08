@@ -170,13 +170,23 @@ Repository (인터페이스 + Supabase 구현)
 - 키: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, (필요 시) `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`.
 - `core/env.dart`에서 단일 진입점으로 노출.
 
-### 7. 작업 브랜치
+### 7. 작업 브랜치 (git-flow)
+
+프로젝트는 [git-flow](https://danielkummer.github.io/git-flow-cheatsheet/index.html) 전략을 따른다. 전체 규칙은 `.claude/rules/git-flow.md` 참조.
+
 - 각 feature 작업은 해당 브랜치에서:
   - `feature/login` — auth
   - `feature/todo` — todo
   - `feature/calendar` — calendar
   - `feature/my-page` — profile
-- 새 feature 추가 시 main에서 분기.
+- 신규 feature 추가 시 **`develop`에서 분기**한다 (`main`에서 분기 금지).
+  ```bash
+  git checkout develop && git pull origin develop
+  git checkout -b feature/<이름>
+  ```
+- 작업 완료 후 PR 생성 시 **base 브랜치는 `develop`**으로 지정한다 (`/pull-request` 커맨드 기본값).
+- 릴리즈(`main` 머지 + `vX.Y.Z` 태그)는 `/release` 슬래시 커맨드로 수행한다. 개별 feature 브랜치/로직 작업 중에는 릴리즈 관련 동작을 하지 않는다.
+- 버전 태그 규칙: **X = 신규 기능 / Y = 기존 기능 변경 / Z = 버그 픽스** (일반 SemVer와 정의가 다름 — `.claude/rules/git-flow.md` §"릴리즈 규칙" 참조).
 
 ---
 
