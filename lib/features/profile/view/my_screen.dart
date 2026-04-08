@@ -70,48 +70,107 @@ class _MyScreenState extends State<MyScreen> {
 
   /// 회원탈퇴 확인 팝업 표시.
   ///
-  /// 확인 시 `ProfileViewModel.deleteAccount()` 호출 → 로그인 화면으로 이동.
-  /// MVP UI 단계: 확인 콜백은 자리만 둔다.
+  /// 다이얼로그 lifecycle 계약 (`.claude/agents/ui-implementor/04_mypage.md`):
+  /// 1) `barrierDismissible: false` — 진행 중 외부 탭으로 임의 닫기 차단.
+  /// 2) 로딩 중 "확인"/"취소" 비활성, "확인"은 [CircularProgressIndicator]로 교체.
+  /// 3) 중복 클릭 가드 — 진행 중 재진입 차단.
+  /// 4) 성공/실패 모두 다이얼로그를 [Navigator.pop]으로 닫는다. 라우팅은 추후
+  ///    go_router redirect에 위임 (현재는 logic 미연결).
+  ///
+  /// 본문 안내: "탈퇴 후 14일 동안은 같은 계정으로 재가입할 수 없습니다."
+  /// (백엔드 14일 쿨다운 정책 — `04_profile.md` §7).
   Future<void> _showWithdrawDialog() async {
     await showDialog<void>(
       context: context,
-      builder: (BuildContext ctx) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            '탈퇴하시겠습니까?',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: _primary,
-            ),
-          ),
-          actionsAlignment: MainAxisAlignment.spaceEvenly,
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              style: TextButton.styleFrom(foregroundColor: _primary),
-              child: const Text(
-                '취소',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        bool isDeleting = false;
+
+        return StatefulBuilder(
+          builder: (BuildContext sbContext, StateSetter setStateDialog) {
+            Future<void> onConfirm() async {
+              if (isDeleting) return; // 중복 클릭 가드.
+              setStateDialog(() => isDeleting = true);
+
+              // TODO(profile-logic): logic-implementor가 ProfileViewModel을
+              // 도입하면 아래 형태로 교체. 골격(barrierDismissible / 로딩 /
+              // 버튼 비활성 / 다이얼로그 pop)은 이미 완성되어 있으므로
+              // ViewModel 호출과 SnackBar 두 줄만 끼우면 된다.
+              //
+              //   try {
+              //     await ref
+              //         .read(profileViewModelProvider.notifier)
+              //         .deleteAccount();
+              //     // 성공: 다이얼로그만 닫는다. /login 이동은 router redirect.
+              //     if (mounted) Navigator.of(dialogContext).pop();
+              //   } catch (_) {
+              //     if (mounted) Navigator.of(dialogContext).pop();
+              //     if (mounted) {
+              //       ScaffoldMessenger.of(context).showSnackBar(
+              //         const SnackBar(
+              //           content: Text('탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.'),
+              //           duration: Duration(seconds: 4),
+              //         ),
+              //       );
+              //     }
+              //   }
+              //
+              // 현재는 ViewModel이 없으므로 즉시 닫기만 한다.
+              if (mounted) Navigator.of(dialogContext).pop();
+            }
+
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                // TODO(profile): ProfileViewModel.deleteAccount() 호출 후
-                // 로그인 화면으로 이동.
-              },
-              style: TextButton.styleFrom(foregroundColor: _primary),
-              child: const Text(
-                '확인',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              title: const Text(
+                '탈퇴하시겠습니까?',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: _primary,
+                ),
               ),
-            ),
-          ],
+              content: const Text(
+                '탈퇴 후 14일 동안은 같은 계정으로 재가입할 수 없습니다.',
+                style: TextStyle(fontSize: 14, color: Color(0xFF555555)),
+              ),
+              actionsAlignment: MainAxisAlignment.spaceEvenly,
+              actions: <Widget>[
+                TextButton(
+                  onPressed:
+                      isDeleting ? null : () => Navigator.of(dialogContext).pop(),
+                  style: TextButton.styleFrom(foregroundColor: _primary),
+                  child: const Text(
+                    '취소',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                TextButton(
+                  onPressed: isDeleting ? null : onConfirm,
+                  style: TextButton.styleFrom(foregroundColor: _primary),
+                  child: isDeleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(_primary),
+                          ),
+                        )
+                      : const Text(
+                          '확인',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
