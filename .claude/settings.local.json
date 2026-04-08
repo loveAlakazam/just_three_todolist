@@ -16,7 +16,8 @@
       "WebFetch(domain:pub.dev)",
       "Bash(flutter devices:*)",
       "Bash(flutter build:*)",
-      "Bash(gh repo:*)"
+      "Bash(gh repo:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

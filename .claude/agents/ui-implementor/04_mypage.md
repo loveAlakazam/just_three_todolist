@@ -29,7 +29,13 @@ Scaffold (bg: #f3f4eb)
 - 프로필 편집 버튼: `go_router.push('/profile/edit')` 연결
 - 회원탈퇴 버튼: `showDialog(AlertDialog)` 표시
   - 타이틀: "탈퇴하시겠습니까?"
+  - 본문 (보조 안내): "탈퇴 후 14일 동안은 같은 계정으로 재가입할 수 없습니다."
   - 버튼: "취소" (닫기) / "확인" (onConfirm 콜백)
+- 회원탈퇴 확인 흐름:
+  1. "확인" 탭 → `ProfileViewModel.deleteAccount()` 호출 (logic-implementor 범위).
+  2. 성공 → 다이얼로그 닫기 → **로그인 화면으로 자동 이동**. 화면 전환은 `go_router`의 전역 redirect (`auth state == null`) 가 담당하므로, View는 별도로 `Navigator.pushReplacement` 등을 호출하지 않는다. 단순히 `if (mounted) Navigator.of(context).pop()`으로 다이얼로그만 닫으면 redirect가 자동으로 `/login`으로 보낸다.
+  3. 실패 → 다이얼로그 닫고 SnackBar로 에러 안내 ("탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.").
+- 14일 재가입 제한 정책은 백엔드에서 강제되며, UI에는 다이얼로그 보조 문구 외 추가 표시 없음. 탈퇴 후 14일 이내 같은 Google 계정으로 로그인을 시도하면 로그인 화면에서 SnackBar로 안내가 노출된다 (해당 흐름은 `01_auth.md` / `04_profile.md` 참고).
 
 ### BottomNavigationBar 동작
 
