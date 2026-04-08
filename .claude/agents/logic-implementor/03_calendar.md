@@ -7,6 +7,12 @@
 - `lib/features/calendar/view/calendar_screen.dart`
 - (참고만, 변경 금지) `lib/shared/widgets/calendar_grid.dart`, `achievement_sticker.dart`
 
+## 사전 가드 (00_overview.md 핵심 제약)
+
+- **CR-1 (인증 가드)**: `/calendar`는 로그인 회원 전용. 비로그인 차단은 router redirect가 책임지며, View / ViewModel에서 별도 분기 금지.
+- **CR-2 (탭 상태 유지)**: 탭 전환 후 돌아왔을 때 사용자가 보고 있던 `_displayMonth`가 그대로 유지되어야 한다. `_displayMonth`는 위젯의 `State`(`ConsumerStatefulWidget`)에 두되, 화면이 `StatefulShellRoute`의 `IndexedStack`에서 dispose되지 않도록 한다. ViewModel(`CalendarViewModel.family`)도 Riverpod 캐시 + `keepAlive`로 유지.
+- **CR-3 (세션 영속화)**: 자동 로그인된 사용자가 캘린더 탭을 처음 열었을 때, 현재 월의 달성률이 fetch되어야 한다.
+
 ### 현재 상태 (UI 구현 완료, 로직 미연결)
 ```dart
 /// 일자(`day`)별 달성률. ViewModel 연결 전까지 빈 Map.

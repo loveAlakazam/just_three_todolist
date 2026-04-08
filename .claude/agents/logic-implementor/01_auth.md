@@ -32,10 +32,20 @@
 
 > 더 깔끔한 대안: Supabase의 **Database Trigger** (`auth.users` insert 시 `profiles` row 자동 생성)를 사용. 이 경우 클라이언트에서는 별도 처리 없이 바로 다음 단계로 넘어간다.
 
-### 3. 세션 복원 / 자동 로그인
-- 앱 시작 시 (`main.dart`) Supabase가 자동으로 세션을 복원한다 (`Supabase.initialize` 후 `client.auth.currentSession`).
-- 세션이 있으면 → `/todo`로 redirect, 없으면 → `/login`.
-- 세션 변화는 `client.auth.onAuthStateChange` stream으로 구독.
+### 3. 세션 복원 / 자동 로그인 (영속화)
+
+> **불변 규칙 (CR-3)**: 한 번 로그인하면 사용자가 명시적으로 로그아웃하지 않는 한, 앱을 완전히 종료/재실행해도 자동으로 로그인 상태가 복원되어야 한다.
+
+- `supabase_flutter`는 로그인 성공 시 access token / refresh token을 **기기 로컬 저장소**(`SharedPreferences` 기반, iOS/Android 모두 OS 보안 영역)에 자동으로 저장한다. → 별도의 SecureStorage 연동 코드를 작성할 필요는 없다.
+- 앱 시작 시 (`main.dart`):
+  1. `WidgetsFlutterBinding.ensureInitialized()`
+  2. `await Env.load()`
+  3. `await SupabaseService.init()` — 이 호출이 끝나면 SDK가 디스크에서 세션을 읽어 메모리에 로드한다.
+  4. `runApp(...)` — 이 시점에 `Supabase.instance.client.auth.currentSession`이 이미 채워져 있다.
+- 세션이 있으면 → router redirect로 `/todo`, 없으면 → `/login` (CR-1과 동일 메커니즘).
+- 세션 변화는 `client.auth.onAuthStateChange` stream으로 구독하고, `GoRouterRefreshStream`으로 router에 연결한다.
+- refresh token 갱신은 SDK가 자동 처리 → 별도 timer / 수동 갱신 금지.
+- **금지 사항**: 임의로 `auth.signOut()`을 호출하거나 로컬 저장소를 직접 비우지 말 것. 에러가 발생해도 세션을 지우지 않는다 (네트워크 일시 장애로 사용자가 강제 로그아웃되는 것을 방지). 세션 제거는 오직 §5 (사용자가 My 화면에서 호출) 또는 회원탈퇴 한 군데서만 발생한다.
 
 ### 4. 로그인 후 라우팅
 - 로그인 성공 → go_router로 `/todo`(또는 `/calendar`) replace.

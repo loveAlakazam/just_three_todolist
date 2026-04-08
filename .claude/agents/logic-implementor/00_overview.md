@@ -71,6 +71,46 @@ lib/
 
 ---
 
+## 핵심 제약사항 (앱 전체 적용)
+
+> 모든 feature 구현에 영향을 주는 **불변 규칙**이다. 어느 화면 작업이든 시작 전에 반드시 숙지한다.
+
+### CR-1. 인증 가드 — Todo / Calendar / My는 로그인 회원 전용
+
+- **로그인하지 않은 사용자는 `/login` 외 어떤 화면에도 진입할 수 없다.**
+- 이 정책은 ViewModel/View가 아니라 **`go_router`의 전역 `redirect`** 한 곳에서 강제한다.
+  - 비로그인 + 보호 라우트 접근 → `/login`으로 redirect.
+  - 로그인 + `/login` 접근 → `/todo`로 redirect.
+- ViewModel(`AuthViewModel`)의 `AsyncValue<User?>`를 `redirect`에서 읽고, `authStateChanges` stream을 `refreshListenable`로 연결해 로그인/로그아웃 시점에 자동 재평가되도록 한다.
+- 보호 라우트: `/todo`, `/calendar`, `/my`, `/my/edit`. 공개 라우트: `/login`.
+- 상세 구현은 `01_auth.md` §3, `05_app_bootstrap.md` §5 참고.
+
+> View 단에서 `if (user == null) Navigator.push(LoginScreen)` 같은 분기 처리는 **금지**.
+> 단일 진입점(router redirect)에서만 처리해 race condition / 중복 navigation을 방지한다.
+
+### CR-2. BottomNavigationBar 탭 상태 유지
+
+- BottomNav로 전환되는 3개 탭(`/calendar`, `/todo`, `/my`)은 **각 탭의 상태가 유지**되어야 한다.
+  - 예: Todo 탭에서 텍스트 입력 중 → Calendar 탭으로 이동했다가 돌아오면 입력 위치/스크롤이 그대로 유지.
+  - Calendar에서 9월 → Todo → Calendar로 돌아오면 여전히 9월 화면.
+- 구현은 **`StatefulShellRoute.indexedStack`** (go_router) 사용. 각 탭이 `IndexedStack` 안에 살아 있어 build가 재실행되지 않는다.
+- `Navigator.pushReplacement(MaterialPageRoute(...))` 같은 패턴은 화면을 매번 새로 만들기 때문에 **금지**. 모든 탭 이동은 `branch.goBranch(index)` 또는 `context.go(...)`로 교체.
+- `EditProfileScreen`(`/my/edit`)은 탭이 아닌 push 라우트라 별도. shell 안의 `/my` 위에 push되며, 닫으면 `/my` 상태 그대로 복귀.
+- 상세 구현은 `05_app_bootstrap.md` §5 참고.
+
+### CR-3. 세션 영속화 — 로그아웃 전까지 자동 로그인 유지
+
+- 로그인 성공 후 사용자 세션은 **기기 보안 저장소**에 저장되어, 앱을 종료하고 다시 켜도 자동 로그인 상태로 복원되어야 한다.
+- `supabase_flutter`는 기본값으로 세션을 안전하게 persist한다 (`Supabase.initialize`의 `authOptions.pkceAsyncStorage` / 내부 `SharedPreferences` + secure 처리). **별도 코드 없이 동작**하지만, 다음을 반드시 보장한다:
+  - `Supabase.initialize`를 `runApp` 이전에 `await`로 호출.
+  - 앱 시작 직후 `Supabase.instance.client.auth.currentSession`을 읽어 router redirect의 초기값으로 사용.
+  - 세션 만료 / refresh token 갱신은 SDK가 자동 처리. 별도 timer 금지.
+- 로그아웃은 오직 **사용자가 명시적으로 My 화면에서 호출했을 때**만 발생한다. 에러 처리/네트워크 실패 등에서 임의로 `signOut()`을 호출하지 않는다.
+- "기기에 저장된 세션을 지우는" 동작은 `signOut()` 한 군데로 통일.
+- 상세 구현은 `01_auth.md` §3, `05_app_bootstrap.md` §4 참고.
+
+---
+
 ## MVVM 흐름 (모든 feature 공통)
 
 ```
@@ -144,10 +184,12 @@ Repository (인터페이스 + Supabase 구현)
 
 1. `git branch --show-current`로 작업 브랜치 확인.
 2. 이 파일 + 작업 대상 명세 (`01~05`) Read.
-3. 대응하는 View 파일 Read하여 콜백 시그니처 / 임시 상태 구조 파악.
-4. `.claude/rules/architecture.md` + `.claude/rules/project-overview.md` 재확인.
-5. 필요한 패키지 추가 (`flutter pub add ...`).
-6. `core/`, `shared/models/`가 없으면 먼저 생성 (`05_app_bootstrap.md`).
+3. **핵심 제약(CR-1/CR-2/CR-3)** 절을 다시 읽고, 작업이 어느 제약에 영향을 주는지 확인.
+4. 대응하는 View 파일 Read하여 콜백 시그니처 / 임시 상태 구조 파악.
+5. `.claude/rules/architecture.md` + `.claude/rules/project-overview.md` 재확인.
+6. 필요한 패키지 추가 (`flutter pub add ...`).
+7. `core/`, `shared/models/`가 없으면 먼저 생성 (`05_app_bootstrap.md`).
+8. `core/router.dart`(인증 redirect + StatefulShellRoute)가 없으면 다른 feature보다 먼저 구축. CR-1/CR-2가 동작하지 않는 상태에서 todo/calendar/profile을 만들면 검증이 불가능하다.
 
 ---
 

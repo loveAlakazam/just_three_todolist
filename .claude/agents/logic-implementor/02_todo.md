@@ -6,6 +6,12 @@
 ## 대상 View
 - `lib/features/todo/view/todo_screen.dart`
 
+## 사전 가드 (00_overview.md 핵심 제약)
+
+- **CR-1 (인증 가드)**: `/todo`는 로그인 회원 전용. View 자체에 비로그인 분기 처리를 넣지 않는다. 비로그인 상태에서의 접근 차단은 `core/router.dart`의 `redirect`가 단독으로 책임진다. ViewModel `build()`는 항상 `auth.uid()`가 존재한다고 가정해도 된다.
+- **CR-2 (탭 상태 유지)**: `/todo` 탭은 `StatefulShellRoute`의 `IndexedStack`에 들어 있어야 한다. 다른 탭으로 이동했다 돌아와도 ViewModel이 dispose되지 않고, 진행 중이던 텍스트 입력 / 스크롤이 그대로 유지되어야 한다. → `keepAlive: true` 또는 shell 안에서 자연스럽게 유지되는 구조 사용.
+- **CR-3 (세션 영속화)**: 앱 재시작 시 자동 로그인 → 사용자는 `/todo`로 바로 진입한다. ViewModel은 매번 새로 생성되므로, "오늘 날짜" 기준 데이터를 다시 fetch할 수 있어야 한다.
+
 ### 현재 상태 (UI 구현 완료, 로직 미연결)
 View 안에서 다음 임시 상태로만 동작한다 (모두 ViewModel로 옮겨야 함):
 ```dart

@@ -7,6 +7,12 @@
 - `lib/features/profile/view/my_screen.dart`
 - `lib/features/profile/view/edit_profile_screen.dart`
 
+## 사전 가드 (00_overview.md 핵심 제약)
+
+- **CR-1 (인증 가드)**: `/my`, `/my/edit`는 로그인 회원 전용. 비로그인 차단은 router redirect가 책임지며, View / ViewModel에서 별도 분기 금지.
+- **CR-2 (탭 상태 유지)**: `/my`는 BottomNav 탭이므로 `StatefulShellRoute`의 `IndexedStack`에 들어 있어야 하고, 다른 탭 갔다가 돌아와도 `ProfileViewModel` 캐시가 유지되어 다시 로딩이 발생하지 않아야 한다. `/my/edit`는 shell 위에 push되는 라우트이며, 닫고 돌아오면 `/my` 상태 그대로 복귀.
+- **CR-3 (세션 영속화) & 로그아웃**: 로그아웃 / 회원탈퇴는 **이 화면에서만 트리거되는 유일한 세션 제거 경로**이다. 다른 어떤 화면/ViewModel도 임의로 `auth.signOut()`을 호출해서는 안 된다. 호출 직후 router redirect가 자동으로 `/login`으로 이동한다.
+
 ### 현재 상태 (UI 구현 완료, 로직 미연결)
 
 #### `my_screen.dart`
