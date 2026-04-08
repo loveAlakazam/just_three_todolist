@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   font_awesome_flutter: ^10.6.0
+  image_picker: ^1.2.1
   sign_in_button: 4.0.1
 
 dev_dependencies:

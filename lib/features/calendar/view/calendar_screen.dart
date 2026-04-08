@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/widgets/calendar_grid.dart';
+import '../../profile/view/my_screen.dart';
 import '../../todo/view/todo_screen.dart';
 
 /// 캘린더 화면.
@@ -83,8 +84,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
           MaterialPageRoute<void>(builder: (_) => const TodoScreen()),
         );
       case 2:
-        // TODO(my-page): MyScreen 구현 후 pushReplacement 연결.
-        break;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => const MyScreen()),
+        );
     }
   }
 
