@@ -1,6 +1,6 @@
 name: just_three_todolist
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0+1
 
 environment:
@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.4
   font_awesome_flutter: ^10.6.0
   image_picker: ^1.2.1
   sign_in_button: 4.0.1
@@ -23,3 +24,13 @@ flutter:
 
   assets:
     - assets/images/
+
+flutter_launcher_icons:
+  image_path: assets/icons/just-three-icon.png
+  # android
+  android: true
+  adaptive_icon_background: "#1f1f1e"
+  adaptive_icon_foreground: "assets/icons/just-three-icon.png"
+  # iOS
+  ios: true
+  remove_alpha_ios: true
