@@ -171,6 +171,38 @@ class CalendarViewModel extends _$CalendarViewModel {
 > 추가 테이블 없음. `02_todo.md`의 `todos` 테이블만 사용.
 
 ### (선택) 성능을 위한 RPC
+
+#### 목적
+
+월별 달성률 집계를 **클라이언트가 아닌 DB 서버에서** 수행하는 Supabase RPC(Remote Procedure Call) 함수다. `CalendarRepository.getMonthlyAchievement()`의 내부 구현을 교체하는 용도다.
+
+#### 왜 필요한가
+
+캘린더 달성률 계산에는 두 가지 방식이 있다:
+
+| | 클라이언트 집계 (현재 MVP 방식) | RPC 함수 (서버 집계) |
+|---|---|---|
+| 동작 방식 | `todos` 테이블에서 해당 월의 전체 row를 SELECT → 앱(Dart)에서 day별 `done/total` 계산 | DB 서버에서 SQL로 `GROUP BY date` + `SUM/COUNT` 계산 → 결과(day, rate)만 반환 |
+| 네트워크 전송량 | 해당 월의 **모든 todo row** (10개/일 × 30일 = 최대 300개) | **집계 결과만** (최대 31개 row) |
+| 연산 위치 | 모바일 기기 (Dart) | DB 서버 (PostgreSQL) |
+| 장점 | 별도 DB 설정 불필요. 즉시 사용 가능 | 전송량 ~1/10, 서버가 인덱스 활용해 빠르게 집계, 모바일 기기 부하 감소 |
+| 단점 | 데이터가 쌓일수록 전송량/처리 시간 증가 | Supabase SQL Editor에서 함수를 직접 생성해야 함 |
+
+**MVP에서는 클라이언트 집계로 충분하다.** 하루 최대 10개 todo × 30일 = 300개 row 정도는 모바일에서도 빠르게 처리된다. 하지만 장기간 사용으로 데이터가 쌓이거나, 네트워크 환경이 느린 경우 RPC로 교체하면 체감 성능이 크게 개선된다.
+
+#### 사용되는 곳
+
+- `CalendarRepository.getMonthlyAchievement()` — 현재 클라이언트 집계 코드를 `supabase.rpc(...)` 한 줄로 교체
+
+#### 동작 흐름
+
+1. 사용자가 캘린더에서 특정 월(예: 2026년 4월)을 보고 있음
+2. `CalendarViewModel`이 `CalendarRepository.getMonthlyAchievement(year: 2026, month: 4)` 호출
+3. Repository가 `supabase.rpc('get_monthly_achievement', params: {'p_year': 2026, 'p_month': 4})` 실행
+4. DB 서버에서 해당 월의 `todos`를 날짜별로 GROUP BY → `done/total` 비율 계산 → 둘째 자리 반올림
+5. 결과 `[{day: 1, rate: 0.67}, {day: 2, rate: 1.00}, ...]` 만 클라이언트로 전송
+6. Repository가 `Map<int, double>`로 변환 → ViewModel → View에 반영
+
 ```sql
 create or replace function public.get_monthly_achievement(p_year int, p_month int)
 returns table(day int, rate numeric)

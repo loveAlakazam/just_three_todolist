@@ -374,7 +374,7 @@ class MainApp extends ConsumerWidget {
 
 1. **인프라**: 패키지 추가 → `.env` → `core/env.dart` → `core/supabase_client.dart` → `core/router.dart` → `main.dart`.
 2. **모델**: `shared/models/profile.dart`, `shared/models/todo.dart`.
-3. **DB / Storage**: Supabase 대시보드에서 `profiles`, `todos` 테이블 + RLS + `avatars` 버킷 생성. (`01~04` 명세의 SQL 참고.)
+3. **DB / Storage**: Supabase 대시보드에서 `profiles`, `todos` 테이블 + RLS + `profile-images` 버킷 생성. (`01~04` 명세의 SQL 참고.)
 4. **인증**: `01_auth.md` → 로그인 동작 확인.
 5. **Todo**: `02_todo.md`.
 6. **Calendar**: `03_calendar.md` (Todo 동작 확인 후 진행해야 데이터가 보임).
@@ -428,7 +428,7 @@ void _onTabTapped(int index) {
 - [ ] `lib/main.dart` 재작성 (`ProviderScope` + `MaterialApp.router`, `Supabase.init` await로 CR-3 보장)
 - [ ] `lib/shared/models/profile.dart` 작성
 - [ ] `lib/shared/models/todo.dart` 작성
-- [ ] Supabase 대시보드: `profiles`, `todos` 테이블 + RLS + `avatars` 버킷
+- [ ] Supabase 대시보드: `profiles`, `todos` 테이블 + RLS + `profile-images` 버킷
 - [ ] (선택) `handle_new_user` trigger / `delete-account` Edge Function
 - [ ] 3개 탭 View의 BottomNav `_onTabTapped`를 `StatefulNavigationShell.goBranch(index)`로 교체
 - [ ] `Navigator.pushReplacement` / `Navigator.push(MaterialPageRoute)` 잔존 호출 모두 제거

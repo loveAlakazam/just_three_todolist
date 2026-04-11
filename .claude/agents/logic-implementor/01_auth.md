@@ -143,6 +143,18 @@ class AuthViewModel extends _$AuthViewModel {
 ## Supabase 스키마
 
 ### `profiles` 테이블
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| `id` | `uuid` | PK, FK → `auth.users(id)` ON DELETE CASCADE | Supabase Auth 사용자 ID와 1:1 매핑 |
+| `name` | `text` | NOT NULL | 표시 이름 (최초 가입 시 Google 이름 또는 이메일 앞부분) |
+| `avatar_url` | `text` | nullable | 프로필 이미지 Storage 경로 (`<userId>/<uuid>.jpg`). null이면 기본 이미지 |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | 프로필 생성 시각 |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | 마지막 수정 시각 |
+
+- RLS: 본인(`auth.uid() = id`)만 SELECT / UPDATE / INSERT
+- `auth.users` 삭제 시 cascade로 함께 삭제됨
+
 ```sql
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -168,6 +180,33 @@ create policy "profiles can be inserted by owner"
 ```
 
 ### (선택) auth.users insert trigger
+
+#### 목적
+
+`auth.users` 테이블에 새 사용자가 추가되는 순간, **DB 레벨에서 자동으로** `profiles` row를 생성하는 트리거다.
+
+#### 왜 필요한가
+
+| | trigger 없이 (클라이언트 처리) | trigger 사용 |
+|---|---|---|
+| 동작 방식 | 로그인 성공 후 클라이언트가 `profiles` 조회 → row 없으면 INSERT | `auth.users`에 row가 들어가는 즉시 DB가 자동으로 `profiles` INSERT |
+| 장점 | 별도 DB 설정 불필요 | 클라이언트 코드 단순화, race condition 없음, 어떤 클라이언트에서 로그인하든 일관성 보장 |
+| 단점 | 네트워크 끊김/앱 강제종료 시 profile 생성이 누락될 수 있음. 여러 기기에서 동시 로그인 시 race condition 가능 | Supabase SQL Editor에서 트리거를 직접 생성해야 함 |
+
+#### 권장
+
+trigger 방식을 사용하면 `AuthRepository.ensureProfileExists()` 메서드가 불필요해지고, 로그인 흐름이 단순해진다. **특별한 이유가 없으면 trigger 사용을 권장**한다.
+
+#### 동작 흐름
+
+1. 사용자가 Google OAuth로 첫 로그인
+2. Supabase Auth가 `auth.users` 테이블에 새 row INSERT
+3. 트리거 `on_auth_user_created`가 자동 실행
+4. `handle_new_user()` 함수가 `profiles` 테이블에 row 생성
+   - `name`: Google 계정의 `full_name`, 없으면 이메일의 `@` 앞 부분
+   - `avatar_url`: null (기본 이미지)
+5. 클라이언트는 별도 처리 없이 바로 `/todo` 화면으로 이동
+
 ```sql
 create or replace function public.handle_new_user()
 returns trigger

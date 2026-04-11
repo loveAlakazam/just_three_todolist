@@ -188,6 +188,22 @@ class TodoViewModel extends _$TodoViewModel {
 ## Supabase 스키마
 
 ### `todos` 테이블
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| `id` | `uuid` | PK, default `gen_random_uuid()` | 개별 todo 고유 ID |
+| `user_id` | `uuid` | NOT NULL, FK → `auth.users(id)` ON DELETE CASCADE | 소유자 |
+| `date` | `date` | NOT NULL | 해당 todo가 속한 날짜 (KST 기준) |
+| `text` | `text` | NOT NULL, default `''` | 목표 내용 (한글 기준 최대 20자, 클라이언트에서 제한) |
+| `is_completed` | `boolean` | NOT NULL, default `false` | 달성 여부 체크 |
+| `order_index` | `integer` | NOT NULL | 같은 날짜 내 정렬 순서 (0부터 시작) |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | 생성 시각 |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | 마지막 수정 시각 (trigger로 자동 갱신) |
+
+- 인덱스: `(user_id, date, order_index)` — 일별 조회 + 정렬 최적화
+- RLS: 본인(`auth.uid() = user_id`)만 SELECT / INSERT / UPDATE / DELETE
+- 하루 최대 10개 제한은 MVP에서 클라이언트 검증, DB 제약은 선택사항
+
 ```sql
 create table public.todos (
   id uuid primary key default gen_random_uuid(),
@@ -215,6 +231,33 @@ create policy "todos owner delete" on public.todos
 ```
 
 ### updated_at 자동 갱신 trigger
+
+#### 목적
+
+`todos` 테이블의 row가 UPDATE될 때, `updated_at` 컬럼을 **DB 레벨에서 자동으로** 현재 시각으로 갱신하는 트리거다.
+
+#### 왜 필요한가
+
+| | trigger 없이 (클라이언트 처리) | trigger 사용 |
+|---|---|---|
+| 동작 방식 | 클라이언트가 UPDATE 시 매번 `updated_at: DateTime.now().toIso8601String()`을 명시적으로 전달 | DB가 UPDATE 감지 시 자동으로 `updated_at = now()` 설정 |
+| 장점 | 별도 DB 설정 불필요 | 클라이언트가 `updated_at`을 빠뜨려도 항상 정확한 값이 들어감. 서버 시간 기준이라 기기 시간 조작에 영향 없음 |
+| 단점 | 클라이언트마다 `updated_at`을 빠뜨리거나 기기 시간이 틀리면 부정확해짐 | Supabase SQL Editor에서 트리거를 직접 생성해야 함 |
+
+#### 사용되는 곳
+
+- `updateTodoText(id, text)` — 텍스트 수정 시
+- `updateTodoCompletion(id, isCompleted)` — 완료 토글 시
+
+이 두 경우 모두 클라이언트는 변경할 컬럼(`text` 또는 `is_completed`)만 전달하면 되고, `updated_at`은 트리거가 알아서 채운다.
+
+#### 동작 흐름
+
+1. 클라이언트가 `supabase.from('todos').update({'text': '운동하기'}).eq('id', todoId)` 호출
+2. DB가 UPDATE 실행 직전에 `todos_set_updated_at` 트리거 발동
+3. `set_updated_at()` 함수가 `new.updated_at = now()` 로 서버 현재 시각 설정
+4. UPDATE 완료 — `text`와 `updated_at`이 함께 갱신됨
+
 ```sql
 create or replace function public.set_updated_at()
 returns trigger language plpgsql as $$
@@ -229,9 +272,27 @@ create trigger todos_set_updated_at
   for each row execute function public.set_updated_at();
 ```
 
-### 제약 (선택)
-- 한 날짜당 todo 수 제한 (10개)을 DB에서 강제하려면 trigger 또는 partial unique index 활용.
-- MVP에서는 클라이언트(`canAddMore`)만으로 충분.
+### 제약 (선택) — 하루 최대 10개 todo 제한
+
+#### 목적
+
+한 사용자가 같은 날짜에 생성할 수 있는 todo 수를 **DB 레벨에서** 최대 10개로 제한한다.
+
+#### 현재 상태 (MVP)
+
+클라이언트의 `canAddMore` (`state.length < 10`) 검사만으로 제한하고 있다. **정상적인 앱 사용에서는 이것으로 충분**하다.
+
+#### 왜 DB 제약이 추가로 필요할 수 있는가
+
+| 위협 | 클라이언트만으로 방어 가능? | DB 제약으로 방어 가능? |
+|------|------------------------|---------------------|
+| 앱에서 정상적으로 "목표추가하기" 버튼 탭 | O (버튼 비활성화) | O |
+| 변조된 클라이언트 / API 직접 호출로 11개째 INSERT 시도 | X (클라이언트 검사 우회 가능) | O (DB에서 차단) |
+
+MVP에서는 변조 위협이 낮으므로 클라이언트 검증으로 충분하다. 고도화 시 아래 방법 중 하나로 DB 제약을 추가할 수 있다:
+
+- **방법 A**: INSERT 전에 row 수를 세는 trigger
+- **방법 B**: `(user_id, date, order_index)` 에 partial unique index + `order_index`를 0~9로 제한하는 CHECK 제약
 
 ---
 

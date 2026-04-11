@@ -152,7 +152,7 @@ Repository (인터페이스 + Supabase 구현)
 - `core/supabase_client.dart`의 글로벌 인스턴스 (`Supabase.instance.client`)만 사용.
 - **모든 테이블에 RLS 적용 필수**: `user_id = auth.uid()` 정책.
 - DB 시간/날짜는 KST 기준 (`Asia/Seoul`). Dart 측에서 `DateTime`을 KST 자정으로 정규화한 뒤 `toIso8601String()`의 date 부분만 사용.
-- Storage 버킷은 `avatars` 1개 (public read, owner write).
+- Storage 버킷은 `profile-images` 1개 (private, signed URL로 접근, owner read/write).
 - 회원탈퇴 등 admin 권한 필요한 작업은 **Supabase Edge Function**으로 위임.
 
 ### 4. 에러 처리
@@ -167,7 +167,7 @@ Repository (인터페이스 + Supabase 구현)
 
 ### 6. 환경 변수
 - `.env` 파일은 절대 커밋 금지 (`.gitignore` 확인).
-- 키: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, (필요 시) `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`.
+- 키: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GOOGLE_OAUTH_IOS_CLIENT_ID`, `GOOGLE_OAUTH_ANDROID_CLIENT_ID`.
 - `core/env.dart`에서 단일 진입점으로 노출.
 
 ### 7. 작업 브랜치 (git-flow)
