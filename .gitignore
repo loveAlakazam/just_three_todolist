@@ -7,6 +7,9 @@ node_modules/
 # claude
 CLAUDE.local.md
 
+# vscode
+.vscode/
+
 # Miscellaneous
 *.class
 *.log
