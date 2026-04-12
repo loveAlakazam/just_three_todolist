@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-
-import '../../calendar/view/calendar_screen.dart';
-import '../../todo/view/todo_screen.dart';
-import 'edit_profile_screen.dart';
+import 'package:go_router/go_router.dart';
 
 /// My 탭(마이페이지) 초기화면.
 ///
@@ -41,31 +38,16 @@ class _MyScreenState extends State<MyScreen> {
 
   /// BottomNavigationBar 탭 핸들러.
   ///
-  /// 스펙(`.claude/agents/ui-implementor.md` `공유 위젯: BottomNavigationBar` 절):
-  /// - 동일 탭 재선택은 no-op.
-  /// - 다른 탭은 백 스택을 쌓지 않도록 `pushReplacement`로 화면 전환.
-  /// - go_router 도입 후 `context.go(...)`로 교체 예정.
+  /// `StatefulNavigationShell.goBranch`로 탭을 전환하여
+  /// IndexedStack 안에서 화면 상태가 유지된다 (CR-2).
   void _onTabTapped(int index) {
     if (index == _tabIndex) return;
-    switch (index) {
-      case 0:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const CalendarScreen()),
-        );
-      case 1:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const TodoScreen()),
-        );
-    }
+    StatefulNavigationShell.of(context).goBranch(index);
   }
 
   /// 프로필 편집 화면으로 이동.
-  ///
-  /// go_router 도입 후 `context.push('/profile/edit')`로 교체 예정.
   void _goToEditProfile() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const EditProfileScreen()),
-    );
+    context.push('/my/edit');
   }
 
   /// 회원탈퇴 확인 팝업 표시.
