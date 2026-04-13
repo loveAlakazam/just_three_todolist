@@ -54,41 +54,49 @@ class LoginScreen extends ConsumerWidget {
             // maxWidth: 220이 하드코딩되어 크기 변경이 불가능하므로,
             // 같은 패키지의 [SignInButtonBuilder]를 직접 사용해 Google 스타일을
             // 재현하면서 로고 / 텍스트 / 버튼 높이를 키움.
+            // SignInButtonBuilder.onPressed는 non-nullable Function 타입이라
+            // null을 전달할 수 없으므로, AbsorbPointer + Opacity로
+            // 로딩 중 터치 차단 및 시각적 비활성화를 구현한다.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: SizedBox(
-                width: double.infinity,
-                height: 64,
-                child: SignInButtonBuilder(
-                  text: 'Google로 로그인',
-                  textColor: const Color(0xFF1F1F1F),
-                  backgroundColor: Colors.white,
-                  fontSize: 20,
-                  height: 64,
-                  width: double.infinity,
-                  onPressed: isLoading
-                      ? () {}
-                      : () => ref
-                            .read(authViewModelProvider.notifier)
-                            .signInWithGoogle(),
-                  image: Container(
-                    margin: const EdgeInsets.only(right: 14),
-                    child: isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: const Image(
-                              image: AssetImage(
-                                'assets/logos/google_light.png',
-                                package: 'sign_in_button',
+              child: AbsorbPointer(
+                absorbing: isLoading,
+                child: Opacity(
+                  opacity: isLoading ? 0.5 : 1.0,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 64,
+                    child: SignInButtonBuilder(
+                      text: 'Google로 로그인',
+                      textColor: const Color(0xFF1F1F1F),
+                      backgroundColor: Colors.white,
+                      fontSize: 20,
+                      height: 64,
+                      width: double.infinity,
+                      onPressed: () => ref
+                          .read(authViewModelProvider.notifier)
+                          .signInWithGoogle(),
+                      image: Container(
+                        margin: const EdgeInsets.only(right: 14),
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: const Image(
+                                  image: AssetImage(
+                                    'assets/logos/google_light.png',
+                                    package: 'sign_in_button',
+                                  ),
+                                  height: 44,
+                                ),
                               ),
-                              height: 44,
-                            ),
-                          ),
+                      ),
+                    ),
                   ),
                 ),
               ),

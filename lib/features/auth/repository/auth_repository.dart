@@ -29,10 +29,6 @@ abstract class AuthRepository {
 
   /// 로그아웃.
   Future<void> signOut();
-
-  /// 첫 로그인 시 profiles row 생성 (있으면 no-op).
-  /// DB trigger(`handle_new_user`)를 사용한다면 이 메서드 호출을 생략할 수 있다.
-  Future<void> ensureProfileExists();
 }
 
 class SupabaseAuthRepository implements AuthRepository {
@@ -62,34 +58,6 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() async {
     await _client.auth.signOut();
-  }
-
-  @override
-  Future<void> ensureProfileExists() async {
-    final user = _client.auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final existing = await _client
-          .from('profiles')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (existing != null) return;
-
-      final name = user.userMetadata?['full_name'] as String? ??
-          user.email?.split('@').first ??
-          '사용자';
-
-      await _client.from('profiles').insert({
-        'id': user.id,
-        'name': name,
-      });
-    } catch (e) {
-      // profiles 생성 실패는 치명적이지 않음.
-      // DB trigger가 이미 생성했을 수 있으므로 silent fail.
-    }
   }
 }
 
