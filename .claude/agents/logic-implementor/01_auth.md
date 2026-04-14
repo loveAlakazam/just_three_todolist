@@ -23,11 +23,36 @@
 
 ## 구현해야 할 비즈니스 로직
 
-### 1. Google OAuth 로그인
-- Supabase Auth의 `signInWithOAuth(OAuthProvider.google)` 사용.
-- iOS / Android 모바일 환경 → `LaunchMode.externalApplication` 또는 deep link redirect.
-- redirect URL은 Supabase Auth 콜백 URL(`${SUPABASE_URL}/auth/v1/callback`)을 사용한다. `SUPABASE_URL`은 `.env`에서 `Env.supabaseUrl`로 로드하여 하드코딩하지 않는다.
-- `flutter_dotenv`로 `.env`에서 Supabase URL / anon key 로드 (실제 초기화는 `05_app_bootstrap.md` 참조).
+### 1. Google 로그인 (네이티브 방식)
+
+Supabase의 **브라우저 기반 `signInWithOAuth`는 사용하지 않는다.** 모바일 UX / 설정 단순화 / `redirect_uri_mismatch` 리스크 제거를 위해 **네이티브 Google Sign-In SDK → idToken → Supabase `signInWithIdToken`** 흐름을 사용한다.
+
+#### 흐름
+
+```
+앱 → google_sign_in SDK가 OS 네이티브 시트 표시 → 사용자 인증
+  → SDK가 idToken/accessToken 반환
+  → supabase.auth.signInWithIdToken(provider: google, idToken, accessToken)
+  → Supabase가 idToken 서명 검증 → 세션 발급 → SDK가 로컬에 자동 저장
+```
+
+- **redirect URL 불필요**: 브라우저를 거치지 않으므로 deep link / callback URL 설정이 전혀 필요 없다.
+- **세션 영속화**: Supabase SDK가 기존과 동일하게 access / refresh token을 기기 로컬 저장소에 저장한다 (CR-3 유지).
+
+#### 사용 패키지
+
+- `google_sign_in` (pub.dev 공식, `^6.2.0`).
+
+#### 필수 환경 변수 (`.env`)
+
+| 키 | 설명 | 비고 |
+|---|---|---|
+| `GOOGLE_OAUTH_IOS_CLIENT_ID` | Google Cloud Console의 **iOS** OAuth 2.0 Client ID | `GoogleSignIn(clientId: ...)`에 전달. iOS 전용. |
+| `GOOGLE_OAUTH_WEB_CLIENT_ID` | Google Cloud Console의 **Web application** OAuth 2.0 Client ID | `GoogleSignIn(serverClientId: ...)`에 전달. Supabase가 idToken 검증에 사용하는 audience와 반드시 일치해야 한다. |
+| `GOOGLE_OAUTH_ANDROID_CLIENT_ID` | Google Cloud Console의 **Android** OAuth 2.0 Client ID | 문서화 목적으로만 `.env`에 둔다. `google_sign_in` 패키지는 Android 클라이언트 ID를 코드로 전달받지 않고, SHA-1 지문 + 패키지명으로 Google Cloud가 자동 매칭한다. |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Supabase 프로젝트 | 기존과 동일 |
+
+`Env` 클래스에 `googleOAuthIosClientId` / `googleOAuthWebClientId` getter를 추가한다. Android 클라이언트 ID는 코드에서 참조하지 않으므로 getter는 만들지 않는다.
 
 ### 2. 첫 로그인 시 profiles row 생성
 - 로그인 성공 직후 `profiles` 테이블을 조회.
@@ -61,17 +86,25 @@
 
 ### 5. 로그아웃 (My 화면에서 호출)
 - `client.auth.signOut()` 호출.
+- **그 직후 `GoogleSignIn.signOut()`도 호출**하여 네이티브 Google 세션(캐시된 계정 선택 상태)도 함께 정리한다. 누락 시 다음 로그인에서 계정 선택 없이 기존 계정으로 자동 재로그인될 수 있다.
 - onAuthStateChange가 `SIGNED_OUT` 이벤트 발행 → router redirect로 `/login`으로 이동.
 
 ### 6. 에러 처리
-- OAuth 취소 (`AuthException` with code `user_cancelled`) → 조용히 무시.
-- 그 외 에러 → SnackBar로 "로그인에 실패했습니다. 다시 시도해주세요."
+- **사용자 취소**: `GoogleSignIn.signIn()`이 `null`을 반환한다 (예외 아님). Repository에서 `AuthFailure('Google 로그인이 취소되었습니다.')`로 감싸 throw → View는 "취소" 문자열 포함 여부로 SnackBar 억제 (기존 로직 유지).
+- **idToken 누락**: `googleUser.authentication`에서 `idToken`이 null인 경우(서버 클라이언트 ID 미설정 등 설정 오류) → `AuthFailure('로그인 토큰을 가져오지 못했습니다.')`.
+- **Supabase 검증 실패** (`AuthException`): idToken 서명 / audience 불일치 등. → `AuthFailure('로그인에 실패했습니다.', e)`.
+- **그 외 예외**: 네트워크 장애 등. → `AuthFailure('로그인에 실패했습니다.', e)`.
+- View: `AsyncError`로 전이되면 SnackBar "로그인에 실패했습니다. 다시 시도해주세요." (취소 메시지는 제외).
 
 ---
 
 ## 구현해야 할 파일
 
 ### `lib/features/auth/repository/auth_repository.dart`
+
+- `profiles` row 생성은 Supabase `handle_new_user` DB trigger가 처리하므로 `ensureProfileExists()`는 **정의하지 않는다**.
+- `GoogleSignIn` 인스턴스는 Repository 생성 시 1회 초기화하고 `signOut` 시 재사용한다.
+
 ```dart
 abstract class AuthRepository {
   /// 현재 세션이 있는지 여부 (앱 시작 시 사용).
@@ -80,19 +113,59 @@ abstract class AuthRepository {
   /// 인증 상태 변화 stream. router redirect에서 구독.
   Stream<AuthState> get authStateChanges;
 
-  /// Google OAuth 로그인. 성공 시 세션은 SDK가 자동 저장.
-  /// 실패 시 [AuthFailure] throw.
+  /// 네이티브 Google Sign-In → Supabase `signInWithIdToken`.
+  /// 사용자 취소 / idToken 누락 / Supabase 검증 실패 시 [AuthFailure] throw.
+  /// 성공 시 세션은 supabase_flutter가 자동 저장한다.
   Future<void> signInWithGoogle();
 
-  /// 로그아웃.
+  /// Supabase + Google 네이티브 세션 모두 로그아웃.
   Future<void> signOut();
-
-  /// 첫 로그인 시 profiles row 생성 (있으면 no-op).
-  /// DB trigger로 처리한다면 이 메서드는 생략 가능.
-  Future<void> ensureProfileExists();
 }
 
-class SupabaseAuthRepository implements AuthRepository { ... }
+class SupabaseAuthRepository implements AuthRepository {
+  SupabaseAuthRepository()
+      : _googleSignIn = GoogleSignIn(
+          clientId: Env.googleOAuthIosClientId,
+          serverClientId: Env.googleOAuthWebClientId,
+        );
+
+  final SupabaseClient _client = SupabaseService.client;
+  final GoogleSignIn _googleSignIn;
+
+  @override
+  Future<void> signInWithGoogle() async {
+    try {
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        throw const AuthFailure('Google 로그인이 취소되었습니다.');
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null) {
+        throw const AuthFailure('로그인 토큰을 가져오지 못했습니다.');
+      }
+
+      await _client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: googleAuth.accessToken,
+      );
+    } on AuthFailure {
+      rethrow;
+    } on AuthException catch (e) {
+      throw AuthFailure('로그인에 실패했습니다.', e);
+    } catch (e) {
+      throw AuthFailure('로그인에 실패했습니다.', e);
+    }
+  }
+
+  @override
+  Future<void> signOut() async {
+    await _client.auth.signOut();
+    await _googleSignIn.signOut();
+  }
+}
 
 class AuthFailure implements Exception {
   final String message;
@@ -233,52 +306,72 @@ create trigger on_auth_user_created
 
 ---
 
-## Supabase 대시보드 / 환경 설정
+## Supabase / Google Cloud / 플랫폼 설정
 
-### Supabase 대시보드
-1. **Authentication > Providers > Google** 활성화.
-   - Google Cloud Console에서 OAuth 2.0 Client ID 발급 (iOS / Web 각각).
-   - Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`.
-2. **Authentication > URL Configuration**
-   - Redirect URLs에 `https://<project-ref>.supabase.co/auth/v1/callback` 등록. 코드에서는 `Env.supabaseUrl`로 동적 조합한다.
+### Google Cloud Console (OAuth 2.0 Client IDs)
 
-### iOS
-- `ios/Runner/Info.plist`에 URL Scheme 등록:
-  ```xml
-  <key>CFBundleURLTypes</key>
-  <array>
-    <dict>
-      <key>CFBundleURLSchemes</key>
-      <array>
-        <string>io.supabase.justthree</string>
-      </array>
-    </dict>
-  </array>
-  ```
+네이티브 방식에서는 플랫폼별 3개의 OAuth 클라이언트를 각각 발급해야 한다.
 
-### Android
-- `android/app/src/main/AndroidManifest.xml`의 `MainActivity`에 intent-filter 추가:
-  ```xml
-  <intent-filter>
-    <action android:name="android.intent.action.VIEW"/>
-    <category android:name="android.intent.category.DEFAULT"/>
-    <category android:name="android.intent.category.BROWSABLE"/>
-    <data android:scheme="io.supabase.justthree" android:host="login-callback"/>
-  </intent-filter>
-  ```
+| 타입 | 용도 | 필요한 등록 정보 |
+|------|------|------------------|
+| **iOS** | iOS 앱에서 `GoogleSignIn(clientId: ...)`로 직접 사용 | iOS Bundle ID (`com.ignite-ek.justThreeTodolist` 또는 현재 설정된 값) |
+| **Android** | Android 앱의 네이티브 사인인 검증 | Android 패키지명 + **SHA-1 fingerprint** (`cd android && ./gradlew signingReport`로 debug/release 지문 모두 등록) |
+| **Web application** | Supabase가 idToken audience 검증에 사용 / `GoogleSignIn(serverClientId: ...)`에 전달 | **Authorized redirect URIs 등록 불필요** (브라우저 경유 안 함). Client Secret은 Supabase Provider 설정에 입력. |
+
+> 네이티브 방식에서는 **Supabase callback URL(`https://<ref>.supabase.co/auth/v1/callback`)을 Web 클라이언트의 redirect URIs에 등록할 필요가 없다.** 브라우저 리다이렉트 흐름 자체가 없기 때문.
+
+### Supabase Dashboard
+
+- **Authentication > Providers > Google** 활성화.
+  - **Client ID for OAuth**: Web 클라이언트 ID (iOS/Android 아님!).
+  - **Client Secret for OAuth**: Web 클라이언트의 secret.
+  - **Authorized Client IDs (for native sign-in)**: iOS 클라이언트 ID, Android 클라이언트 ID, Web 클라이언트 ID를 **쉼표로 구분하여 모두 등록**한다. 이 목록에 등록되지 않은 audience의 idToken은 Supabase가 거부한다.
+- **Authentication > URL Configuration**: 네이티브 방식에서는 수정 사항 없음.
+
+### iOS (`ios/Runner/Info.plist`)
+
+1. **`GIDClientID`** 키에 **iOS 클라이언트 ID** 전체 값을 등록한다.
+2. **`CFBundleURLTypes`**에 **iOS 클라이언트 ID를 뒤집은(reversed) 형태**를 URL scheme으로 등록한다.
+   - 예: iOS 클라이언트 ID가 `123456789-abcdefg.apps.googleusercontent.com`이면, reversed는 `com.googleusercontent.apps.123456789-abcdefg`.
+3. **기존 `io.supabase.justthree` URL scheme은 삭제한다** (deep link 불필요).
+
+```xml
+<key>GIDClientID</key>
+<string>123456789-abcdefg.apps.googleusercontent.com</string> <!-- 실제 iOS 클라이언트 ID -->
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleTypeRole</key>
+    <string>Editor</string>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>com.googleusercontent.apps.123456789-abcdefg</string> <!-- reversed -->
+    </array>
+  </dict>
+</array>
+```
+
+### Android (`android/app/src/main/AndroidManifest.xml`)
+
+- **기존 `io.supabase.justthree` intent-filter는 삭제한다** (deep link 불필요).
+- Google Sign-In SDK는 추가 manifest 설정을 요구하지 않는다. Google Cloud Console에 Android 클라이언트의 SHA-1 지문 + 패키지명이 등록되어 있으면 자동으로 매칭된다.
+- `google-services.json` 불필요 (Firebase 연동이 아닌 순수 OAuth 경로).
 
 ---
 
 ## 체크리스트
 
-- [ ] `flutter pub add supabase_flutter flutter_riverpod go_router flutter_dotenv`
-- [ ] `.env` 작성 + `.gitignore` 등록
+- [ ] `flutter pub add supabase_flutter flutter_riverpod go_router flutter_dotenv google_sign_in`
+- [ ] `.env` 작성 (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GOOGLE_OAUTH_IOS_CLIENT_ID`, `GOOGLE_OAUTH_WEB_CLIENT_ID`, 참고용 `GOOGLE_OAUTH_ANDROID_CLIENT_ID`) + `.gitignore` 등록
+- [ ] `core/env.dart`에 `googleOAuthIosClientId` / `googleOAuthWebClientId` getter 추가
 - [ ] `core/supabase_client.dart` 초기화 (`05_app_bootstrap.md`)
 - [ ] `core/router.dart`에 auth redirect 추가 (`05_app_bootstrap.md`)
-- [ ] iOS / Android deep link 설정
-- [ ] Supabase 대시보드 Google provider 활성화
+- [ ] Google Cloud Console에 iOS / Android / Web 3개 클라이언트 발급 (Android는 SHA-1 지문 등록 필수)
+- [ ] iOS `Info.plist`에 `GIDClientID` + reversed client ID URL scheme 등록 (기존 `io.supabase.justthree` 제거)
+- [ ] Android `AndroidManifest.xml`에서 기존 `io.supabase.justthree` intent-filter 제거
+- [ ] Supabase 대시보드 Google provider 활성화 + **Authorized Client IDs**에 iOS/Android/Web 3개 ID 모두 등록
 - [ ] `profiles` 테이블 + RLS 생성
-- [ ] (옵션) `handle_new_user` trigger 생성
+- [ ] `handle_new_user` trigger 생성 (프로필 자동 생성)
 - [ ] `auth_repository.dart` + `auth_view_model.dart` 작성
 - [ ] `login_screen.dart`를 `ConsumerWidget`으로 변환 + 콜백 연결
-- [ ] 수동 테스트: 로그인 → 자동 라우팅 → 앱 재시작 시 세션 복원 → 로그아웃
+- [ ] 수동 테스트: 로그인 (네이티브 시트 노출) → 자동 라우팅 → 앱 재시작 시 세션 복원 → 로그아웃 (다음 로그인 시 계정 선택 시트 다시 뜨는지 확인)
