@@ -47,7 +47,8 @@
       "Bash(pkill -f \"KotlinCompileDaemon\")",
       "Bash(brew --version)",
       "Bash(supabase *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(awk '/^diff --git a\\\\/supabase/,0' /Users/eunkangchoi/.claude/projects/-Users-eunkangchoi-side-projects-personal-projects-Just-Three-just-three-todolist/1055a6ce-bfa8-47a8-806b-36dbf43f9145/tool-results/bl4tg2a89.txt)"
     ]
   }
 }
