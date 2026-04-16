@@ -1,10 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../features/auth/repository/auth_repository.dart';
 import '../features/auth/view/login_screen.dart';
 import '../features/auth/viewmodel/auth_view_model.dart';
 import '../features/calendar/view/calendar_screen.dart';
@@ -46,9 +44,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     // 로그인/로그아웃 시점에 redirect 재평가.
-    refreshListenable: GoRouterRefreshStream(
-      ref.read(authRepositoryProvider).authStateChanges,
-    ),
+    //
+    // raw Supabase stream 대신 `authViewModelProvider` 자체를 구독한다.
+    // 동일 stream 에 router / ViewModel 두 리스너가 붙었을 때 호출 순서에 따라
+    // redirect 가 아직 AsyncLoading 인 ViewModel 을 읽어 `/splash` 로 고착되는
+    // race 를 차단하기 위함. Provider notify 는 ViewModel state 가 확정된 뒤에만
+    // 발생하므로 redirect 가 항상 최신 state 를 관찰한다.
+    refreshListenable: _AuthStateListenable(ref),
 
     routes: [
       // 공개 라우트
@@ -111,20 +113,24 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// authStateChanges Stream을 ChangeNotifier로 변환.
+/// `authViewModelProvider` 의 상태 변화를 [Listenable] 로 노출한다.
 ///
-/// go_router의 `refreshListenable`에 연결하면,
-/// 로그인/로그아웃 이벤트가 발생할 때마다 redirect가 재평가된다.
-class GoRouterRefreshStream extends ChangeNotifier {
-  GoRouterRefreshStream(Stream<dynamic> stream) {
-    _sub = stream.listen((_) => notifyListeners());
+/// go_router 의 `refreshListenable` 에 연결하면 ViewModel state 가 바뀔 때마다
+/// redirect 가 재평가된다. raw `onAuthStateChange` stream 을 직접 구독하지
+/// 않는 이유는 위 `refreshListenable` 의 코멘트 참조.
+class _AuthStateListenable extends ChangeNotifier {
+  _AuthStateListenable(Ref ref) {
+    _sub = ref.listen<AsyncValue<User?>>(
+      authViewModelProvider,
+      (_, _) => notifyListeners(),
+    );
   }
 
-  late final StreamSubscription<dynamic> _sub;
+  late final ProviderSubscription<AsyncValue<User?>> _sub;
 
   @override
   void dispose() {
-    _sub.cancel();
+    _sub.close();
     super.dispose();
   }
 }

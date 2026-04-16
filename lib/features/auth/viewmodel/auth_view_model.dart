@@ -30,14 +30,19 @@ class AuthViewModel extends AsyncNotifier<User?> {
 
   /// 네이티브 Google Sign-In 로그인.
   ///
-  /// - 성공: `signInWithIdToken` 완료와 동시에 `authStateChanges` 가
-  ///   새 세션을 발행 → build() 의 listener 에서 `state = AsyncData(user)`.
+  /// - 성공: `signInWithIdToken` 완료 시 Supabase 가 `authStateChanges` 로
+  ///   새 세션을 발행 → build() 의 listener 가 `state = AsyncData(user)`.
+  ///   추가로 await 복귀 직후에도 현재 세션으로 직접 state 를 덮어써서
+  ///   stream 이 늦게 오거나 재구독 시점에 이벤트를 놓쳐도 `AsyncLoading` 에
+  ///   고착되지 않도록 방어한다 (멱등한 갱신).
   /// - 취소/실패: Repository 가 `AuthFailure`(취소 시 `AuthCancelled`) 를 throw
   ///   → 여기서 `state = AsyncError` 로 전이 → View 가 타입으로 분기.
   Future<void> signInWithGoogle() async {
     state = const AsyncLoading<User?>();
     try {
-      await ref.read(authRepositoryProvider).signInWithGoogle();
+      final repo = ref.read(authRepositoryProvider);
+      await repo.signInWithGoogle();
+      state = AsyncData(repo.currentSession?.user);
     } on AuthFailure catch (e, st) {
       state = AsyncError(e, st);
     }
