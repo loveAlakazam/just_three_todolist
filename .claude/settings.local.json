@@ -33,7 +33,22 @@
       "Bash(printf 'refs/heads/develop 1111111111111111111111111111111111111111 refs/heads/develop 0000000000000000000000000000000000000000\\\\n')",
       "Bash(.husky/_/pre-push)",
       "Bash(printf '\\(delete\\) 0000000000000000000000000000000000000000 refs/heads/develop 1111111111111111111111111111111111111111\\\\n')",
-      "Bash(.husky/_/pre-commit)"
+      "Bash(.husky/_/pre-commit)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch *)",
+      "Bash(git stash *)",
+      "Bash(git filter-branch -f --env-filter ' *)",
+      "Bash(./gradlew assembleDebug --stacktrace)",
+      "Bash(flutter clean *)",
+      "Bash(./gradlew :app:compileFlutterBuildDebug --info --stacktrace)",
+      "Bash(xattr -p com.apple.quarantine /Users/eunkangchoi/Documents/flutter-dev/flutter/bin/flutter)",
+      "Bash(xattr /Users/eunkangchoi/Documents/flutter-dev/flutter/bin/flutter)",
+      "Bash(./gradlew --stop)",
+      "Bash(pkill -f \"flutter_tools.snapshot\")",
+      "Bash(pkill -f \"KotlinCompileDaemon\")",
+      "Bash(brew --version)",
+      "Bash(supabase *)",
+      "Bash(git check-ignore *)",
+      "Bash(awk '/^diff --git a\\\\/supabase/,0' /Users/eunkangchoi/.claude/projects/-Users-eunkangchoi-side-projects-personal-projects-Just-Three-just-three-todolist/1055a6ce-bfa8-47a8-806b-36dbf43f9145/tool-results/bl4tg2a89.txt)"
     ]
   }
 }

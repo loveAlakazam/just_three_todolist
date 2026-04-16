@@ -2,10 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-
-import '../../calendar/view/calendar_screen.dart';
-import '../../todo/view/todo_screen.dart';
 
 /// 프로필 편집 화면.
 ///
@@ -61,21 +59,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   /// BottomNavigationBar 탭 핸들러.
   ///
-  /// 스펙(`.claude/agents/ui-implementor.md` `공유 위젯: BottomNavigationBar` 절):
-  /// - 동일 탭 재선택은 no-op (My 탭).
-  /// - 다른 탭은 백 스택을 쌓지 않도록 `pushReplacement`로 화면 전환.
+  /// `StatefulNavigationShell.goBranch`로 탭을 전환하여
+  /// IndexedStack 안에서 화면 상태가 유지된다 (CR-2).
   void _onTabTapped(int index) {
     if (index == _tabIndex) return;
-    switch (index) {
-      case 0:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const CalendarScreen()),
-        );
-      case 1:
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const TodoScreen()),
-        );
-    }
+    StatefulNavigationShell.of(context).goBranch(index);
   }
 
   /// 카메라 버튼 탭 → 이미지 업로드 / 이미지 제거 BottomSheet 표시.
@@ -175,7 +163,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   /// 사항을 전달하고, Supabase Storage 업로드 / profiles 테이블 업데이트 후
   /// My 화면으로 pop 한다.
   void _onSubmit() {
-    Navigator.of(context).pop();
+    context.pop();
   }
 
   @override

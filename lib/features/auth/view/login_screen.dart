@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sign_in_button/sign_in_button.dart';
+
+import '../repository/auth_repository.dart';
+import '../viewmodel/auth_view_model.dart';
 
 /// 로그인 화면.
 ///
@@ -8,11 +12,27 @@ import 'package:sign_in_button/sign_in_button.dart';
 ///   ├─ Expanded (로고)
 ///   ├─ SignInButtonBuilder (Google 스타일, 전체 가로폭)
 ///   └─ SizedBox (하단 여백)
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends ConsumerWidget {
   const LoginScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 에러 구독 → SnackBar 표시.
+    ref.listen<AsyncValue<dynamic>>(authViewModelProvider, (prev, next) {
+      if (next is AsyncError) {
+        // 사용자 의도적 취소는 에러로 알리지 않음.
+        if (next.error is AuthCancelled) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('로그인에 실패했습니다. 다시 시도해주세요.'),
+          ),
+        );
+      }
+    });
+
+    final authState = ref.watch(authViewModelProvider);
+    final isLoading = authState.isLoading;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4EB),
       body: SafeArea(
@@ -33,29 +53,47 @@ class LoginScreen extends StatelessWidget {
             // maxWidth: 220이 하드코딩되어 크기 변경이 불가능하므로,
             // 같은 패키지의 [SignInButtonBuilder]를 직접 사용해 Google 스타일을
             // 재현하면서 로고 / 텍스트 / 버튼 높이를 키움.
+            // SignInButtonBuilder.onPressed는 non-nullable Function 타입이라
+            // null을 전달할 수 없으므로, AbsorbPointer + Opacity로
+            // 로딩 중 터치 차단 및 시각적 비활성화를 구현한다.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: SizedBox(
-                width: double.infinity,
-                height: 64,
-                child: SignInButtonBuilder(
-                  text: 'Google로 로그인',
-                  textColor: const Color(0xFF1F1F1F),
-                  backgroundColor: Colors.white,
-                  fontSize: 20,
-                  height: 64,
-                  width: double.infinity,
-                  onPressed: () => _handleGoogleSignIn(context),
-                  image: Container(
-                    margin: const EdgeInsets.only(right: 14),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: const Image(
-                        image: AssetImage(
-                          'assets/logos/google_light.png',
-                          package: 'sign_in_button',
-                        ),
-                        height: 44,
+              child: AbsorbPointer(
+                absorbing: isLoading,
+                child: Opacity(
+                  opacity: isLoading ? 0.5 : 1.0,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 64,
+                    child: SignInButtonBuilder(
+                      text: 'Google로 로그인',
+                      textColor: const Color(0xFF1F1F1F),
+                      backgroundColor: Colors.white,
+                      fontSize: 20,
+                      height: 64,
+                      width: double.infinity,
+                      onPressed: () => ref
+                          .read(authViewModelProvider.notifier)
+                          .signInWithGoogle(),
+                      image: Container(
+                        margin: const EdgeInsets.only(right: 14),
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: const Image(
+                                  image: AssetImage(
+                                    'assets/logos/google_light.png',
+                                    package: 'sign_in_button',
+                                  ),
+                                  height: 44,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -67,16 +105,5 @@ class LoginScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  /// Google 로그인 탭 핸들러.
-  ///
-  /// TODO: ViewModel 연결 후 실제 로그인 처리로 교체.
-  /// 로그인 실패 시 [SnackBar]로 에러 메시지 표시(아래 예시 참고).
-  void _handleGoogleSignIn(BuildContext context) {
-    // 예시: 실패 처리
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   const SnackBar(content: Text('로그인에 실패했습니다. 다시 시도해주세요.')),
-    // );
   }
 }
