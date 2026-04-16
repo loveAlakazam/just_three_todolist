@@ -15,6 +15,13 @@ class AuthFailure implements Exception {
   String toString() => 'AuthFailure: $message';
 }
 
+/// 사용자가 네이티브 로그인 시트에서 취소한 경우.
+///
+/// View 는 이 타입을 보고 SnackBar 를 **억제**한다 (에러가 아닌 사용자 의도).
+class AuthCancelled extends AuthFailure {
+  const AuthCancelled() : super('Google 로그인이 취소되었습니다.');
+}
+
 /// 인증 관련 데이터 접근 레이어.
 ///
 /// 네이티브 Google Sign-In SDK → idToken → Supabase `signInWithIdToken`
@@ -57,7 +64,7 @@ class SupabaseAuthRepository implements AuthRepository {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         // 사용자가 네이티브 시트에서 취소.
-        throw const AuthFailure('Google 로그인이 취소되었습니다.');
+        throw const AuthCancelled();
       }
 
       final GoogleSignInAuthentication googleAuth =

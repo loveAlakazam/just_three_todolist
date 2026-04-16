@@ -20,9 +20,8 @@ class LoginScreen extends ConsumerWidget {
     // 에러 구독 → SnackBar 표시.
     ref.listen<AsyncValue<dynamic>>(authViewModelProvider, (prev, next) {
       if (next is AsyncError) {
-        final error = next.error;
-        // OAuth 취소는 조용히 무시.
-        if (error is AuthFailure && error.message.contains('취소')) return;
+        // 사용자 의도적 취소는 에러로 알리지 않음.
+        if (next.error is AuthCancelled) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('로그인에 실패했습니다. 다시 시도해주세요.'),
