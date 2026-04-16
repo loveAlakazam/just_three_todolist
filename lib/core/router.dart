@@ -117,8 +117,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// 로그인/로그아웃 이벤트가 발생할 때마다 redirect가 재평가된다.
 class GoRouterRefreshStream extends ChangeNotifier {
   GoRouterRefreshStream(Stream<dynamic> stream) {
-    notifyListeners();
-    _sub = stream.asBroadcastStream().listen((_) => notifyListeners());
+    _sub = stream.listen((_) => notifyListeners());
   }
 
   late final StreamSubscription<dynamic> _sub;
