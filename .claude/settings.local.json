@@ -36,7 +36,18 @@
       "Bash(.husky/_/pre-commit)",
       "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch *)",
       "Bash(git stash *)",
-      "Bash(git filter-branch -f --env-filter ' *)"
+      "Bash(git filter-branch -f --env-filter ' *)",
+      "Bash(./gradlew assembleDebug --stacktrace)",
+      "Bash(flutter clean *)",
+      "Bash(./gradlew :app:compileFlutterBuildDebug --info --stacktrace)",
+      "Bash(xattr -p com.apple.quarantine /Users/eunkangchoi/Documents/flutter-dev/flutter/bin/flutter)",
+      "Bash(xattr /Users/eunkangchoi/Documents/flutter-dev/flutter/bin/flutter)",
+      "Bash(./gradlew --stop)",
+      "Bash(pkill -f \"flutter_tools.snapshot\")",
+      "Bash(pkill -f \"KotlinCompileDaemon\")",
+      "Bash(brew --version)",
+      "Bash(supabase *)",
+      "Bash(git check-ignore *)"
     ]
   }
 }
