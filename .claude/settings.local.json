@@ -33,7 +33,10 @@
       "Bash(printf 'refs/heads/develop 1111111111111111111111111111111111111111 refs/heads/develop 0000000000000000000000000000000000000000\\\\n')",
       "Bash(.husky/_/pre-push)",
       "Bash(printf '\\(delete\\) 0000000000000000000000000000000000000000 refs/heads/develop 1111111111111111111111111111111111111111\\\\n')",
-      "Bash(.husky/_/pre-commit)"
+      "Bash(.husky/_/pre-commit)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch *)",
+      "Bash(git stash *)",
+      "Bash(git filter-branch -f --env-filter ' *)"
     ]
   }
 }
