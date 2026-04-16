@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/env.dart';
 import '../../../core/supabase_client.dart';
 
 /// 인증 실패 예외.
@@ -45,7 +46,7 @@ class SupabaseAuthRepository implements AuthRepository {
     try {
       final bool success = await _client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'io.supabase.justthree://login-callback',
+        redirectTo: '${Env.supabaseUrl}/auth/v1/callback',
       );
       if (!success) {
         throw const AuthFailure('Google 로그인이 취소되었습니다.');

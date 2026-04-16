@@ -26,7 +26,7 @@
 ### 1. Google OAuth 로그인
 - Supabase Auth의 `signInWithOAuth(OAuthProvider.google)` 사용.
 - iOS / Android 모바일 환경 → `LaunchMode.externalApplication` 또는 deep link redirect.
-- redirect URL은 Supabase 대시보드에 등록된 값과 일치해야 함 (예: `io.supabase.justthree://login-callback`).
+- redirect URL은 Supabase Auth 콜백 URL(`${SUPABASE_URL}/auth/v1/callback`)을 사용한다. `SUPABASE_URL`은 `.env`에서 `Env.supabaseUrl`로 로드하여 하드코딩하지 않는다.
 - `flutter_dotenv`로 `.env`에서 Supabase URL / anon key 로드 (실제 초기화는 `05_app_bootstrap.md` 참조).
 
 ### 2. 첫 로그인 시 profiles row 생성
@@ -240,7 +240,7 @@ create trigger on_auth_user_created
    - Google Cloud Console에서 OAuth 2.0 Client ID 발급 (iOS / Web 각각).
    - Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`.
 2. **Authentication > URL Configuration**
-   - Additional Redirect URLs에 `io.supabase.justthree://login-callback` 등록 (deep link).
+   - Redirect URLs에 `https://<project-ref>.supabase.co/auth/v1/callback` 등록. 코드에서는 `Env.supabaseUrl`로 동적 조합한다.
 
 ### iOS
 - `ios/Runner/Info.plist`에 URL Scheme 등록:
