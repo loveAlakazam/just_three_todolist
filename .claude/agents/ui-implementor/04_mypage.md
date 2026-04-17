@@ -25,6 +25,7 @@ Scaffold (bg: #f3f4eb)
       ├─ Row
       │  ├─ CircleAvatar (프로필 이미지)
       │  └─ Text ("{이름} 님", #512DA8)
+      ├─ Align(right) → TextButton ("로그아웃", gray #9E9E9E)
       ├─ ElevatedButton ("프로필 편집", #512DA8)
       ├─ ElevatedButton ("회원탈퇴", gray)
       └─ BottomNavigationBar (My 활성)
@@ -32,6 +33,10 @@ Scaffold (bg: #f3f4eb)
 
 ### 동작
 
+- 로그아웃 버튼: 프로필 헤더 바로 아래, 오른쪽 정렬된 회색(`#9E9E9E`) `TextButton`.
+  - 탭 시 `AuthViewModel.signOut()` 호출.
+  - 성공 → router redirect(`auth state == null`)가 자동으로 `/login`으로 이동. View는 별도 navigation 호출 없음.
+  - 실패 → SnackBar "로그아웃에 실패했습니다. 다시 시도해주세요." (duration: 4초).
 - 프로필 편집 버튼: `go_router.push('/profile/edit')` 연결
 - 회원탈퇴 버튼: `showDialog(AlertDialog)` 표시
   - 타이틀: "탈퇴하시겠습니까?"

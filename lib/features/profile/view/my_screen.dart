@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../auth/viewmodel/auth_view_model.dart';
 import '../../../shared/models/profile.dart';
 import '../viewmodel/profile_view_model.dart';
 
@@ -10,6 +11,7 @@ import '../viewmodel/profile_view_model.dart';
 /// 레이아웃:
 /// Scaffold → SafeArea → Column
 ///   ├─ Row (CircleAvatar + "{이름} 님")
+///   ├─ Align(right) → TextButton ("로그아웃", gray)
 ///   ├─ ElevatedButton ("프로필 편집", primary)
 ///   ├─ ElevatedButton ("회원탈퇴", gray)
 ///   └─ BottomNavigationBar (My 활성)
@@ -37,6 +39,25 @@ class _MyScreenState extends ConsumerState<MyScreen> {
   void _onTabTapped(int index) {
     if (index == _tabIndex) return;
     StatefulNavigationShell.of(context).goBranch(index);
+  }
+
+  /// 로그아웃 처리.
+  ///
+  /// `AuthViewModel.signOut()` 호출 → `authStateChanges`가 `SIGNED_OUT` 발행
+  /// → router redirect가 자동으로 `/login`으로 이동.
+  Future<void> _signOut() async {
+    try {
+      await ref.read(authViewModelProvider.notifier).signOut();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('로그아웃에 실패했습니다. 다시 시도해주세요.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
 
   /// 프로필 편집 화면으로 이동.
@@ -169,7 +190,9 @@ class _MyScreenState extends ConsumerState<MyScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _buildProfileHeader(userName, avatarUrl),
-        const SizedBox(height: 32),
+        const SizedBox(height: 8),
+        _buildLogoutButton(),
+        const SizedBox(height: 24),
         _buildEditProfileButton(),
         const SizedBox(height: 12),
         _buildWithdrawButton(),
@@ -203,6 +226,23 @@ class _MyScreenState extends ConsumerState<MyScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  // ────────────────────── 로그아웃 버튼 ──────────────────────
+  Widget _buildLogoutButton() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton(
+        onPressed: _signOut,
+        style: TextButton.styleFrom(
+          foregroundColor: const Color(0xFF9E9E9E),
+        ),
+        child: const Text(
+          '로그아웃',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+      ),
     );
   }
 
