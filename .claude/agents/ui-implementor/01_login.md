@@ -33,6 +33,37 @@ Scaffold (bg: #f3f4eb)
 - `pubspec.yaml`의 `flutter.assets`에 `assets/images/` 경로가 등록되어 있어야 한다.
 - `Image.asset`에 `fit: BoxFit.contain`을 지정해 비율을 유지한다.
 
+## 로그인 플로우
+
+### 인증 방식
+
+- **네이티브 Google Sign-In** (`google_sign_in` 패키지) → `idToken` 획득 → Supabase `signInWithIdToken`
+- 웹 기반 OAuth (PKCE/implicit) 는 사용하지 않음. 콜백 URL 불필요.
+
+### 신규 회원 (앱 최초 이용)
+
+1. 구글 로그인 버튼 클릭
+2. (Google) 구글 계정 선택 화면
+3. (Google) 로그인 성공 시 접근 권한 허용 화면
+4. 로그인 완료 → Todo 화면(`/todo`)으로 이동
+
+### 기존 회원 (토큰 만료 / 로그아웃 후 재로그인)
+
+1. 구글 로그인 버튼 클릭
+2. (Google) 구글 계정 선택 화면
+3. 로그인 완료 → Todo 화면(`/todo`)으로 이동
+
+### 로그인 실패
+
+1. 에러 발생 시 `SnackBar`로 "로그인에 실패했습니다. 다시 시도해주세요." 표시
+2. 로그인 화면 유지 (다른 화면으로 이동하지 않음)
+
+### 로그인 취소
+
+1. 구글 계정 선택에서 취소 시 에러 메시지 없이 로그인 화면 유지
+
+---
+
 ## 위젯 상세
 
 ### Google 로그인 버튼 (`sign_in_button` 패키지)
