@@ -2,8 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../viewmodel/profile_view_model.dart';
 
 /// 프로필 편집 화면.
 ///
@@ -16,40 +19,45 @@ import 'package:image_picker/image_picker.dart';
 ///   ├─ ElevatedButton ("수정하기", primary)
 ///   └─ BottomNavigationBar (My 활성 유지)
 ///
+/// `profileViewModelProvider` 를 구독하여 현재 프로필 정보를 prefill 한다.
 /// 이미지 업로드 / 제거는 [수정하기] 버튼 탭 시점까지 임시 상태로만 보존된다.
 /// 화면 이탈 시 변경 사항은 저장되지 않는다.
-///
-/// MVP UI 단계 — 실제 image_picker / Supabase Storage 연동은 후속 작업에서 진행.
-class EditProfileScreen extends StatefulWidget {
+class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
 
   @override
-  State<EditProfileScreen> createState() => _EditProfileScreenState();
+  ConsumerState<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
+class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   static const Color _primary = Color(0xFF512DA8);
   static const Color _bg = Color(0xFFF3F4EB);
 
-  /// 임시 사용자 이름 (My 화면에서 prefill 되어야 하는 값).
-  static const String _initialName = '사용자';
-
-  late final TextEditingController _nameController = TextEditingController(
-    text: _initialName,
-  );
+  late final TextEditingController _nameController;
 
   /// 갤러리에서 사용자가 선택한 임시 이미지.
-  /// - null = 기본 이미지(아이콘) 상태 (초기 또는 "이미지 제거" 후)
-  /// - 그 외 = 갤러리에서 선택된 로컬 파일 (수정하기 전까지 임시 보존)
+  /// - null = 변경 없음 (기존 이미지 또는 기본 아이콘 유지)
   XFile? _pickedImage;
 
-  /// `image_picker` 인스턴스. 시스템 사진첩 권한 요청은 첫 호출 시
-  /// iOS/Android OS가 1번 표시한 뒤 사용자 선택을 캐시한다.
+  /// 이미지 제거가 명시적으로 요청되었는지 여부.
+  bool _imageRemoved = false;
+
+  /// 현재 프로필의 원본 아바타 URL (비교용).
+  String? _originalAvatarUrl;
+
+  /// `image_picker` 인스턴스.
   final ImagePicker _imagePicker = ImagePicker();
 
   /// 현재 선택된 BottomNavigation 인덱스 (0: Calendar, 1: To Do, 2: My)
-  /// 프로필 편집 화면도 My 탭의 하위 화면이므로 활성 인덱스는 2를 유지한다.
   static const int _tabIndex = 2;
+
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+  }
 
   @override
   void dispose() {
@@ -58,9 +66,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   /// BottomNavigationBar 탭 핸들러.
-  ///
-  /// `StatefulNavigationShell.goBranch`로 탭을 전환하여
-  /// IndexedStack 안에서 화면 상태가 유지된다 (CR-2).
   void _onTabTapped(int index) {
     if (index == _tabIndex) return;
     StatefulNavigationShell.of(context).goBranch(index);
@@ -117,16 +122,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   /// 이미지 업로드 처리.
-  ///
-  /// `image_picker.pickImage(source: gallery)`를 호출한다.
-  /// - iOS: 첫 호출 시 OS가 사진첩 접근 권한 다이얼로그를 1번만 표시한다.
-  ///   (`Info.plist`의 `NSPhotoLibraryUsageDescription` 필요)
-  /// - Android 13+: 시스템 Photo Picker를 사용하므로 별도 권한 불필요.
-  /// - 권한이 거부되거나 picker가 실패하면 SnackBar로 안내한다.
-  /// - 사용자가 picker를 취소(`null` 반환)하면 상태를 변경하지 않는다.
-  ///
-  /// 선택된 파일은 `_pickedImage`에 임시 저장되며, [수정하기] 버튼을 누르기
-  /// 전까지 Supabase 등 원격 저장소에 반영되지 않는다.
   Future<void> _onPickImage() async {
     try {
       final XFile? picked = await _imagePicker.pickImage(
@@ -137,6 +132,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (!mounted) return;
       setState(() {
         _pickedImage = picked;
+        _imageRemoved = false;
       });
     } on PlatformException catch (e) {
       if (!mounted) return;
@@ -154,34 +150,58 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _onRemoveImage() {
     setState(() {
       _pickedImage = null;
+      _imageRemoved = true;
     });
   }
 
   /// 수정하기 버튼 탭 핸들러.
   ///
-  /// TODO(profile): ProfileViewModel.updateProfile()에 이름 / 이미지 변경
-  /// 사항을 전달하고, Supabase Storage 업로드 / profiles 테이블 업데이트 후
-  /// My 화면으로 pop 한다.
-  void _onSubmit() {
-    context.pop();
+  /// ProfileViewModel.updateProfile() 에 이름 / 이미지 변경 사항을 전달하고,
+  /// 완료 후 My 화면으로 pop 한다.
+  Future<void> _onSubmit() async {
+    final String newName = _nameController.text.trim();
+    if (newName.isEmpty) return;
+
+    try {
+      await ref.read(profileViewModelProvider.notifier).updateProfile(
+            name: newName,
+            imageFile: _pickedImage,
+            removeImage: _imageRemoved,
+          );
+      if (mounted) context.pop();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('프로필 수정에 실패했습니다. 다시 시도해주세요.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final profileAsync = ref.watch(profileViewModelProvider);
+
+    // 프로필 데이터가 로드되면 한 번만 컨트롤러를 초기화.
+    final profile = profileAsync.value;
+    if (!_initialized && profile != null) {
+      _nameController.text = profile.name;
+      _originalAvatarUrl = profile.avatarUrl;
+      _initialized = true;
+    }
+
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 32, 20, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Center(child: _buildAvatarWithCameraButton()),
-              const SizedBox(height: 32),
-              _buildNameRow(),
-              const SizedBox(height: 24),
-              _buildSubmitButton(),
-            ],
+          child: profileAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => _buildForm(null),
+            data: (_) => _buildForm(_originalAvatarUrl),
           ),
         ),
       ),
@@ -189,17 +209,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  Widget _buildForm(String? currentAvatarUrl) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Center(child: _buildAvatarWithCameraButton(currentAvatarUrl)),
+        const SizedBox(height: 32),
+        _buildNameRow(),
+        const SizedBox(height: 24),
+        _buildSubmitButton(),
+      ],
+    );
+  }
+
   // ────────────────────── 프로필 이미지 + 카메라 버튼 ──────────────────────
-  Widget _buildAvatarWithCameraButton() {
+  Widget _buildAvatarWithCameraButton(String? currentAvatarUrl) {
     final XFile? picked = _pickedImage;
+
+    // 표시할 이미지 결정: 갤러리 선택 > 제거됨 > 기존 URL
+    ImageProvider? imageProvider;
+    if (picked != null) {
+      imageProvider = FileImage(File(picked.path));
+    } else if (!_imageRemoved && currentAvatarUrl != null) {
+      imageProvider = NetworkImage(currentAvatarUrl);
+    }
+
     return Stack(
       clipBehavior: Clip.none,
       children: <Widget>[
         CircleAvatar(
           radius: 56,
           backgroundColor: const Color(0xFFD9D9D9),
-          backgroundImage: picked != null ? FileImage(File(picked.path)) : null,
-          child: picked == null
+          backgroundImage: imageProvider,
+          child: imageProvider == null
               ? const Icon(Icons.person, size: 64, color: Colors.white)
               : null,
         ),
