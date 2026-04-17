@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../auth/viewmodel/auth_view_model.dart';
@@ -28,10 +29,15 @@ class ProfileViewModel extends AsyncNotifier<Profile?> {
 
   /// 프로필 이름/아바타를 업데이트한다.
   ///
+  /// [imageFile]: 갤러리에서 선택된 새 이미지. non-null 이면 Storage 업로드.
+  /// [removeImage]: true 이면 기존 이미지 삭제 + avatar_url null.
+  /// 둘 다 해당 없으면 이미지 변경 없음 (keep).
+  ///
   /// 성공 시 state 를 갱신하여 MyScreen / EditProfileScreen 이 자동 반영.
   Future<void> updateProfile({
     String? name,
-    String? Function()? avatarUrl,
+    XFile? imageFile,
+    bool removeImage = false,
   }) async {
     final authState = ref.read(authViewModelProvider);
     final User? user = authState.value;
@@ -41,7 +47,8 @@ class ProfileViewModel extends AsyncNotifier<Profile?> {
     final updated = await repo.updateProfile(
       userId: user.id,
       name: name,
-      avatarUrl: avatarUrl,
+      imageFile: imageFile,
+      removeImage: removeImage,
     );
 
     state = AsyncData(updated);

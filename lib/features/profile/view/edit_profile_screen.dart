@@ -165,7 +165,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     try {
       await ref.read(profileViewModelProvider.notifier).updateProfile(
             name: newName,
-            avatarUrl: _imageRemoved ? () => null : null,
+            imageFile: _pickedImage,
+            removeImage: _imageRemoved,
           );
       if (mounted) context.pop();
     } catch (_) {
