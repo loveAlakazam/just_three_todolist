@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -75,6 +78,9 @@ class SupabaseAuthRepository implements AuthRepository {
         throw const AuthFailure('로그인 토큰을 가져오지 못했습니다.');
       }
 
+      // JWT payload 디코딩 — nonce 존재 여부 확인용 디버그 로그.
+      _debugLogIdToken(idToken);
+
       await _client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
@@ -83,9 +89,29 @@ class SupabaseAuthRepository implements AuthRepository {
     } on AuthFailure {
       rethrow;
     } on AuthException catch (e) {
+      debugPrint('[AuthRepository] signInWithIdToken 실패: ${e.message} (statusCode: ${e.statusCode})');
       throw AuthFailure('로그인에 실패했습니다.', e);
     } catch (e) {
+      debugPrint('[AuthRepository] 예기치 않은 오류: $e');
       throw AuthFailure('로그인에 실패했습니다.', e);
+    }
+  }
+
+  /// idToken JWT 의 payload 를 디코딩해 nonce 유무를 콘솔에 출력한다.
+  void _debugLogIdToken(String idToken) {
+    try {
+      final parts = idToken.split('.');
+      if (parts.length == 3) {
+        final payload = utf8.decode(
+          base64Url.decode(base64Url.normalize(parts[1])),
+        );
+        final claims = json.decode(payload) as Map<String, dynamic>;
+        debugPrint('[AuthRepository] idToken nonce: ${claims['nonce']}');
+        debugPrint('[AuthRepository] idToken iss: ${claims['iss']}');
+        debugPrint('[AuthRepository] idToken aud: ${claims['aud']}');
+      }
+    } catch (e) {
+      debugPrint('[AuthRepository] idToken 디코딩 실패: $e');
     }
   }
 

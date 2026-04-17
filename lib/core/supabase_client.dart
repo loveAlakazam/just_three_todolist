@@ -15,8 +15,10 @@ class SupabaseService {
     await Supabase.initialize(
       url: Env.supabaseUrl,
       anonKey: Env.supabaseAnonKey,
+      // 네이티브 Google Sign-In + signInWithIdToken 방식은 웹 OAuth 를
+      // 사용하지 않는다. implicit 으로 명시해 PKCE 딥링크 핸들러 비활성화.
       authOptions: const FlutterAuthClientOptions(
-        authFlowType: AuthFlowType.pkce,
+        authFlowType: AuthFlowType.implicit,
       ),
     );
   }

@@ -76,7 +76,7 @@ Supabase의 **브라우저 기반 `signInWithOAuth`는 사용하지 않는다.**
   3. `await SupabaseService.init()` — 이 호출이 끝나면 SDK가 디스크에서 세션을 읽어 메모리에 로드한다.
   4. `runApp(...)` — 이 시점에 `Supabase.instance.client.auth.currentSession`이 이미 채워져 있다.
 - 세션이 있으면 → router redirect로 `/todo`, 없으면 → `/login` (CR-1과 동일 메커니즘).
-- 세션 변화는 `client.auth.onAuthStateChange` stream으로 구독하고, `GoRouterRefreshStream`으로 router에 연결한다.
+- 세션 변화는 `AuthViewModel` 이 `client.auth.onAuthStateChange` stream 으로 구독해 `state`(`AsyncValue<User?>`) 에 반영한다. Router 는 raw Supabase stream 대신 **이 `authViewModelProvider` 자체를 `refreshListenable` 로 구독**한다 — stream 에 두 구독자(router / ViewModel) 가 동시에 붙었을 때 리스너 호출 순서에 따라 router 가 아직 갱신되지 않은 ViewModel state 를 읽어버리는 race (로그인 성공 직후 `/splash` 에 고착) 를 차단하기 위함.
 - refresh token 갱신은 SDK가 자동 처리 → 별도 timer / 수동 갱신 금지.
 - **금지 사항**: 임의로 `auth.signOut()`을 호출하거나 로컬 저장소를 직접 비우지 말 것. 에러가 발생해도 세션을 지우지 않는다 (네트워크 일시 장애로 사용자가 강제 로그아웃되는 것을 방지). 세션 제거는 오직 §5 (사용자가 My 화면에서 호출) 또는 회원탈퇴 한 군데서만 발생한다.
 

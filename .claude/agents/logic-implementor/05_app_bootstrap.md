@@ -147,7 +147,6 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/view/login_screen.dart';
 import '../features/auth/viewmodel/auth_view_model.dart';
-import '../features/auth/repository/auth_repository.dart';
 import '../features/calendar/view/calendar_screen.dart';
 import '../features/profile/view/edit_profile_screen.dart';
 import '../features/profile/view/my_screen.dart';
@@ -179,9 +178,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     // 로그인/로그아웃 시점에 redirect 재평가.
-    refreshListenable: GoRouterRefreshStream(
-      ref.read(authRepositoryProvider).authStateChanges,
-    ),
+    //
+    // raw Supabase stream 을 직접 구독하는 대신 `authViewModelProvider` 자체를
+    // 구독한다. raw stream 에 router / ViewModel 두 리스너가 동시에 붙으면
+    // "router 리스너가 먼저 호출 → 아직 AsyncLoading 인 ViewModel 을 읽어 `/splash`
+    // 로 리다이렉트 → 뒤이어 ViewModel 이 AsyncData 로 바뀌지만 router 는 재평가
+    // 되지 않음" 이라는 race 로 스플래시에 고착된다. Provider 구독은 ViewModel
+    // state 가 확정된 뒤에만 notify 되므로 redirect 가 항상 최신 state 를 본다.
+    refreshListenable: _AuthStateListenable(ref),
 
     routes: [
       // 공개 라우트
@@ -244,16 +248,22 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// authStateChanges Stream을 ChangeNotifier로 변환.
-class GoRouterRefreshStream extends ChangeNotifier {
-  GoRouterRefreshStream(Stream<dynamic> stream) {
-    notifyListeners();
-    _sub = stream.asBroadcastStream().listen((_) => notifyListeners());
+/// `authViewModelProvider` 의 상태 변화를 `Listenable` 로 노출.
+///
+/// GoRouter 의 `refreshListenable` 에 연결하면, ViewModel state 가 바뀔 때마다
+/// redirect 가 재평가된다. raw Supabase stream 을 구독하지 않는 이유는 위의
+/// `refreshListenable` 코멘트 참조.
+class _AuthStateListenable extends ChangeNotifier {
+  _AuthStateListenable(Ref ref) {
+    _sub = ref.listen<AsyncValue<User?>>(
+      authViewModelProvider,
+      (_, __) => notifyListeners(),
+    );
   }
-  late final StreamSubscription<dynamic> _sub;
+  late final ProviderSubscription<AsyncValue<User?>> _sub;
   @override
   void dispose() {
-    _sub.cancel();
+    _sub.close();
     super.dispose();
   }
 }
