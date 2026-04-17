@@ -190,9 +190,7 @@ class _MyScreenState extends ConsumerState<MyScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _buildProfileHeader(userName, avatarUrl),
-        const SizedBox(height: 8),
-        _buildLogoutButton(),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         _buildEditProfileButton(),
         const SizedBox(height: 12),
         _buildWithdrawButton(),
@@ -215,14 +213,20 @@ class _MyScreenState extends ConsumerState<MyScreen> {
         ),
         const SizedBox(width: 20),
         Expanded(
-          child: Text(
-            '$userName 님',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: _primary,
-            ),
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                '$userName 님',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: _primary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              _buildLogoutButton(),
+            ],
           ),
         ),
       ],
@@ -232,11 +236,14 @@ class _MyScreenState extends ConsumerState<MyScreen> {
   // ────────────────────── 로그아웃 버튼 ──────────────────────
   Widget _buildLogoutButton() {
     return Align(
-      alignment: Alignment.centerRight,
+      alignment: Alignment.centerLeft,
       child: TextButton(
         onPressed: _signOut,
         style: TextButton.styleFrom(
           foregroundColor: const Color(0xFF9E9E9E),
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(0, 32),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         child: const Text(
           '로그아웃',
