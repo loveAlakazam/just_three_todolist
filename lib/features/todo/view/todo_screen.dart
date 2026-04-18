@@ -69,6 +69,17 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
     final TodoViewModel notifier =
         ref.read(todoViewModelProvider(_date).notifier);
 
+    // 에러 상태로 "처음 전환될 때만" SnackBar 표시.
+    // (build 안에서 addPostFrameCallback 을 쓰면 리빌드마다 등록되어 중복 표시됨)
+    ref.listen<AsyncValue<List<Todo>>>(
+      todoViewModelProvider(_date),
+      (prev, next) {
+        if (next is AsyncError && prev is! AsyncError) {
+          _showError('목표를 불러오지 못했어요.');
+        }
+      },
+    );
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4EB),
       body: SafeArea(
@@ -153,10 +164,8 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
   }
 
   Widget _buildError(Object err) {
-    // 첫 로드 에러 시 안내. 재시도는 "목표 추가하기"가 비활성이므로 pull-to-refresh 등 MVP 외 고도화에 맡김.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _showError('목표를 불러오지 못했어요.');
-    });
+    // SnackBar 알림은 build() 안의 ref.listen 이 담당.
+    // 여기서는 화면 중앙 안내 문구만 렌더링.
     return const Center(
       child: Text(
         '목표를 불러오지 못했어요.',
