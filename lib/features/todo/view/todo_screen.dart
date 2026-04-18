@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/models/todo.dart';
 import '../../../shared/widgets/segmented_progress_bar.dart';
 import '../../../shared/widgets/todo_item_widget.dart';
+import '../viewmodel/todo_view_model.dart';
 
 /// Todo 화면 (메인).
 ///
@@ -14,75 +17,37 @@ import '../../../shared/widgets/todo_item_widget.dart';
 ///   ├─ ElevatedButton ("목표 추가하기")
 ///   └─ BottomNavigationBar
 ///
-/// MVP UI 단계 — 상태는 로컬에서만 관리한다.
-/// ViewModel / Repository 연결은 후속 작업에서 진행.
-class TodoScreen extends StatefulWidget {
+/// - 상태는 `todoViewModelProvider(date)` (AsyncNotifier.family) 로 관리.
+/// - CR-1: 인증 가드는 `core/router.dart` redirect 가 책임 (여기서 비로그인 분기 없음).
+/// - CR-2: `StatefulShellRoute` IndexedStack 안에서 유지.
+/// - CR-3: `build()` 에서 오늘 날짜 기준으로 fetch → 앱 재시작 시 자연스럽게 복구.
+class TodoScreen extends ConsumerStatefulWidget {
   const TodoScreen({super.key});
 
   @override
-  State<TodoScreen> createState() => _TodoScreenState();
+  ConsumerState<TodoScreen> createState() => _TodoScreenState();
 }
 
-class _TodoScreenState extends State<TodoScreen> {
-  static const int _maxTodoCount = 10;
-  static const int _initialTodoCount = 3;
-
-  /// 화면이 표현하는 날짜. 기본값은 오늘.
-  final DateTime _date = DateTime.now();
-
-  /// 로컬 todo 상태. ViewModel 연결 전까지 임시로 사용.
-  late final List<_TodoDraft> _todos = List<_TodoDraft>.generate(
-    _initialTodoCount,
-    (_) => _TodoDraft(),
-  );
+class _TodoScreenState extends ConsumerState<TodoScreen> {
+  /// 화면이 표현하는 날짜 (오늘, KST 기준 시/분/초 0).
+  final DateTime _date = _todayKey();
 
   /// 현재 선택된 BottomNavigation 인덱스 (0: Calendar, 1: To Do, 2: My)
   static const int _tabIndex = 1;
 
-  /// BottomNavigationBar 탭 핸들러.
-  ///
-  /// `StatefulNavigationShell.goBranch`로 탭을 전환하여
-  /// IndexedStack 안에서 화면 상태가 유지된다 (CR-2).
+  static DateTime _todayKey() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
   void _onTabTapped(int index) {
     if (index == _tabIndex) return;
     StatefulNavigationShell.of(context).goBranch(index);
   }
 
   bool get _isToday {
-    final DateTime now = DateTime.now();
-    return now.year == _date.year &&
-        now.month == _date.month &&
-        now.day == _date.day;
-  }
-
-  int get _completedCount => _todos.where((t) => t.isCompleted).length;
-
-  bool get _canAddMore => _todos.length < _maxTodoCount;
-
-  void _addTodo() {
-    if (!_canAddMore) return;
-    setState(() => _todos.add(_TodoDraft()));
-  }
-
-  void _toggleComplete(int index) {
-    // 오늘 날짜 목표는 체크/해제 양방향 토글 가능.
-    // 과거 날짜는 [_isToday]가 false이므로 위젯 단에서 onTap이 차단된다.
-    setState(() {
-      final _TodoDraft todo = _todos[index];
-      todo.isCompleted = !todo.isCompleted;
-    });
-  }
-
-  void _deleteTodo(int index) {
-    // 미달성 상태의 오늘 목표만 삭제 허용. 위젯 단에서 onTap이 이미 막혀 있지만
-    // 안전하게 한 번 더 검사한다.
-    if (!_isToday) return;
-    if (_todos[index].isCompleted) return;
-    setState(() => _todos.removeAt(index));
-  }
-
-  void _updateText(int index, String value) {
-    _todos[index].text = value;
+    final DateTime today = _todayKey();
+    return today == _date;
   }
 
   String _formatDate(DateTime date) {
@@ -92,8 +57,33 @@ class _TodoScreenState extends State<TodoScreen> {
     return '$yyyy.$mm.$dd';
   }
 
+  void _showError(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final AsyncValue<List<Todo>> todosAsync =
+        ref.watch(todoViewModelProvider(_date));
+
+    // 에러 상태로 "처음 전환될 때만" SnackBar 표시.
+    // (build 안에서 addPostFrameCallback 을 쓰면 리빌드마다 등록되어 중복 표시됨)
+    ref.listen<AsyncValue<List<Todo>>>(
+      todoViewModelProvider(_date),
+      (prev, next) {
+        if (next is AsyncError && prev is! AsyncError) {
+          _showError('목표를 불러오지 못했어요.');
+        }
+      },
+    );
+
+    // canAddMore 는 watch 된 state 길이에서 직접 계산 (ViewModel 의 getter 와 동일 로직).
+    // build() 안에서 ref.read(provider.notifier) 를 호출하면
+    // `avoid_read_inside_build` 린트 규칙이 경고하므로, notifier 호출은 모두 콜백 내부에서만 수행.
+    final int currentCount = todosAsync.value?.length ?? 0;
+    final bool canAddMore = currentCount < kMaxTodoCount;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4EB),
       body: SafeArea(
@@ -114,30 +104,12 @@ class _TodoScreenState extends State<TodoScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 달성 게이지바
-              SegmentedProgressBar(
-                totalCount: _todos.length,
-                completedCount: _completedCount,
-              ),
-              const SizedBox(height: 24),
-
-              // Todo 목록
+              // 달성 게이지바 + 리스트 (로딩/에러/데이터 분기)
               Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: List<Widget>.generate(_todos.length, (int i) {
-                      final _TodoDraft todo = _todos[i];
-                      return TodoItemWidget(
-                        key: ValueKey<int>(todo.id),
-                        text: todo.text,
-                        isCompleted: todo.isCompleted,
-                        isEditable: _isToday,
-                        onChanged: (String v) => _updateText(i, v),
-                        onToggle: () => _toggleComplete(i),
-                        onDelete: () => _deleteTodo(i),
-                      );
-                    }),
-                  ),
+                child: todosAsync.when(
+                  loading: () => _buildLoading(),
+                  error: (err, _) => _buildError(err),
+                  data: _buildContent,
                 ),
               ),
 
@@ -148,7 +120,17 @@ class _TodoScreenState extends State<TodoScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _canAddMore ? _addTodo : null,
+                  onPressed: (_isToday && canAddMore)
+                      ? () async {
+                          try {
+                            await ref
+                                .read(todoViewModelProvider(_date).notifier)
+                                .addTodo();
+                          } catch (_) {
+                            _showError('목표를 추가하지 못했어요. 잠시 후 다시 시도해주세요.');
+                          }
+                        }
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF512DA8),
                     foregroundColor: Colors.white,
@@ -170,6 +152,84 @@ class _TodoScreenState extends State<TodoScreen> {
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildLoading() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: const [
+        LinearProgressIndicator(
+          minHeight: 6,
+          color: Color(0xFF512DA8),
+          backgroundColor: Color(0xFFE0E0E0),
+        ),
+        Expanded(child: SizedBox.shrink()),
+      ],
+    );
+  }
+
+  Widget _buildError(Object err) {
+    // SnackBar 알림은 build() 안의 ref.listen 이 담당.
+    // 여기서는 화면 중앙 안내 문구만 렌더링.
+    return const Center(
+      child: Text(
+        '목표를 불러오지 못했어요.',
+        style: TextStyle(color: Color(0xFF9E9E9E)),
+      ),
+    );
+  }
+
+  Widget _buildContent(List<Todo> todos) {
+    final int completedCount = todos.where((t) => t.isCompleted).length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedProgressBar(
+          totalCount: todos.length,
+          completedCount: completedCount,
+        ),
+        const SizedBox(height: 24),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: todos
+                  .map(
+                    (todo) => TodoItemWidget(
+                      key: ValueKey<String>(todo.id),
+                      text: todo.text,
+                      isCompleted: todo.isCompleted,
+                      isEditable: _isToday,
+                      // 콜백 내부에서 notifier 를 조회 (build 에서 ref.read 회피)
+                      onChanged: (String v) => ref
+                          .read(todoViewModelProvider(_date).notifier)
+                          .updateText(todo.id, v),
+                      onToggle: () async {
+                        try {
+                          await ref
+                              .read(todoViewModelProvider(_date).notifier)
+                              .toggleComplete(todo.id);
+                        } catch (_) {
+                          _showError('달성 상태를 저장하지 못했어요.');
+                        }
+                      },
+                      onDelete: () async {
+                        try {
+                          await ref
+                              .read(todoViewModelProvider(_date).notifier)
+                              .deleteTodo(todo.id);
+                        } catch (_) {
+                          _showError('목표를 삭제하지 못했어요.');
+                        }
+                      },
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -201,15 +261,4 @@ class _TodoScreenState extends State<TodoScreen> {
       ],
     );
   }
-}
-
-/// 화면 내부 임시 상태. ViewModel 도입 시 제거 예정.
-class _TodoDraft {
-  _TodoDraft() : id = _nextId++;
-
-  static int _nextId = 0;
-
-  final int id;
-  String text = '';
-  bool isCompleted = false;
 }

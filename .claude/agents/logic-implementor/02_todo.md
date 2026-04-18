@@ -40,12 +40,18 @@ static const int _initialTodoCount = 3;
 ### 1. 일별 todo 조회 (Read)
 - 화면 진입 시점의 KST 날짜로 `todos` 테이블 조회.
 - 결과가 비어 있으면 `_initialTodoCount` (=3) 개의 빈 todo를 자동 생성하고 다시 조회한다.
-- `order_index` 오름차순.
+- 정렬: **미달성(`is_completed = false`) → 달성(`true`)** 순. 각 그룹 내에서는 `order_index` 오름차순.
+  - DB 쿼리: `ORDER BY is_completed ASC, order_index ASC` (bool 은 false=0 < true=1 이므로 미달성이 먼저).
+  - 달성 토글 / 새 todo 추가 시에도 ViewModel state 에서 동일 기준으로 재정렬해야 한다.
 
 ### 2. todo 추가 (Create)
 - 현재 todo 수가 `_maxTodoCount` (=10) 미만일 때만 허용.
-- `text = ''`, `is_completed = false`, `order_index = (현재 max order_index) + 1`.
+- `text = ''`, `is_completed = false`, `order_index = (현재 날짜 전체 max order_index) + 1`.
 - 추가 직후 새 row의 id를 받아 ViewModel state에 추가.
+- **배치 위치**: 새 todo 는 미달성이므로 정렬 규칙(미달성 → 달성)상 달성된 목표들보다 앞에 위치한다.
+  - 결과적으로 "달성된 목표들 중 가장 위(맨 첫번째 달성) **바로 위**" 에 새 목표가 나타난다.
+  - 즉 미달성 그룹의 맨 끝, 달성 그룹이 시작되기 직전 위치.
+  - state 에 append 한 뒤 공통 정렬 헬퍼를 다시 적용하여 이 위치를 보장한다 (`order_index` 를 전체 max+1 로 두면 미달성 그룹 내에서도 맨 뒤가 된다).
 
 ### 3. todo 텍스트 수정 (Update)
 - 입력 중에는 ViewModel state만 갱신 (로컬).
@@ -58,7 +64,8 @@ static const int _initialTodoCount = 3;
 ### 4. todo 완료 토글 (양방향 Update)
 - `isEditable = true` (오늘 날짜)인 경우만 호출됨.
 - `is_completed`를 즉시 toggle → DB update.
-- DB 실패 시 이전 상태로 rollback + SnackBar.
+- 토글 후 state 를 **"미달성 먼저 → 달성 나중, 각 그룹 내 `orderIndex` 오름차순"** 으로 재정렬한다. 달성된 목표는 목록 맨 아래로 이동한다.
+- DB 실패 시 이전 상태로 rollback (재정렬도 되돌림) + SnackBar.
 
 ### 5. todo 삭제 (Delete)
 - 오늘 + 미달성 상태에서만 호출됨 (View 단에서 이미 가드).
@@ -272,27 +279,54 @@ create trigger todos_set_updated_at
   for each row execute function public.set_updated_at();
 ```
 
-### 제약 (선택) — 하루 최대 10개 todo 제한
+### 제약 — 하루 최대 10개 todo 제한 (구현됨)
 
 #### 목적
 
 한 사용자가 같은 날짜에 생성할 수 있는 todo 수를 **DB 레벨에서** 최대 10개로 제한한다.
 
-#### 현재 상태 (MVP)
+#### 방어 계층
 
-클라이언트의 `canAddMore` (`state.length < 10`) 검사만으로 제한하고 있다. **정상적인 앱 사용에서는 이것으로 충분**하다.
+| 위협 | 클라이언트 방어 | DB 방어 |
+|------|------------|-------|
+| 앱에서 정상적으로 "목표추가하기" 버튼 탭 | `canAddMore` 로 버튼 비활성화 | trigger 로 차단 |
+| 변조된 클라이언트 / API 직접 호출로 11개째 INSERT 시도 | 우회 가능 | trigger 로 차단 |
 
-#### 왜 DB 제약이 추가로 필요할 수 있는가
+ViewModel 의 `canAddMore` 는 UX(버튼 비활성화)를, DB trigger 는 보안을 담당한다. 클라이언트 검사를 유지하는 이유는 "사용자 입장에서 즉시 피드백" 을 주기 위함이다.
 
-| 위협 | 클라이언트만으로 방어 가능? | DB 제약으로 방어 가능? |
-|------|------------------------|---------------------|
-| 앱에서 정상적으로 "목표추가하기" 버튼 탭 | O (버튼 비활성화) | O |
-| 변조된 클라이언트 / API 직접 호출로 11개째 INSERT 시도 | X (클라이언트 검사 우회 가능) | O (DB에서 차단) |
+#### 구현 방식 — 방법 A (COUNT trigger)
 
-MVP에서는 변조 위협이 낮으므로 클라이언트 검증으로 충분하다. 고도화 시 아래 방법 중 하나로 DB 제약을 추가할 수 있다:
+방법 B (`order_index` 0~9 CHECK + partial unique index) 대신 방법 A 를 선택한 이유:
 
-- **방법 A**: INSERT 전에 row 수를 세는 trigger
-- **방법 B**: `(user_id, date, order_index)` 에 partial unique index + `order_index`를 0~9로 제한하는 CHECK 제약
+- "10개 채움 → 1개 삭제 → 재추가" 시나리오에서 `order_index = max + 1` 로 자유롭게 증가할 수 있어야 한다 (스펙상 gap 허용).
+- 방법 B 는 `order_index` 를 0~9 고정 슬롯으로 강제해 재추가 시 빈 슬롯 탐색 로직이 필요해진다.
+
+```sql
+create or replace function public.enforce_todos_daily_limit()
+returns trigger language plpgsql as $$
+declare
+  current_count integer;
+begin
+  select count(*) into current_count
+    from public.todos
+    where user_id = new.user_id and date = new.date;
+
+  if current_count >= 10 then
+    raise exception '하루 최대 10개까지만 생성할 수 있습니다.'
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger todos_enforce_daily_limit
+  before insert on public.todos
+  for each row execute function public.enforce_todos_daily_limit();
+```
+
+- 마이그레이션 파일: `supabase/migrations/20260418000003_enforce_todos_daily_limit.sql`
+- 위반 시 `errcode = 'check_violation'` (`23514`) 반환 → 클라이언트에서 분기 처리 가능.
 
 ---
 
