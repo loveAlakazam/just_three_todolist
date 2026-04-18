@@ -13,11 +13,7 @@ import 'package:flutter/material.dart';
 ///
 /// 달성률이 0인 경우 [SizedBox.shrink]를 반환한다.
 class AchievementSticker extends StatelessWidget {
-  const AchievementSticker({
-    super.key,
-    required this.rate,
-    this.size = 10,
-  });
+  const AchievementSticker({super.key, required this.rate, this.size = 18});
 
   /// 달성률 (0.0 ~ 1.0).
   final double rate;
@@ -34,10 +30,7 @@ class AchievementSticker extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 
