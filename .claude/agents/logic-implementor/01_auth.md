@@ -252,7 +252,7 @@ create policy "profiles can be inserted by owner"
   with check (auth.uid() = id);
 ```
 
-### (선택) auth.users insert trigger
+### auth.users insert trigger
 
 #### 목적
 
