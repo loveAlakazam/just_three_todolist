@@ -56,10 +56,20 @@ class ProfileViewModel extends AsyncNotifier<Profile?> {
 
   /// 회원탈퇴 처리.
   ///
-  /// 성공 시 auth state 가 null 이 되어 router redirect 가 /login 으로 이동한다.
-  /// 실패 시 예외를 throw — View 에서 catch 하여 SnackBar 안내.
+  /// 스펙: `.claude/agents/logic-implementor/04_profile.md` §7.
+  ///
+  /// 1) Repository 의 `deleteAccount` 호출 (Storage 정리 → profiles 삭제 →
+  ///    Edge Function `delete-account` 호출 → auth.users cascade 삭제).
+  /// 2) 성공 시 `AuthViewModel.signOut()` 로 로컬 세션도 제거한다.
+  ///    `authStateChanges` 가 `SIGNED_OUT` 을 발행 → router redirect 가
+  ///    자동으로 `/login` 으로 이동시키므로, View 는 다이얼로그 pop 만 하면 된다.
+  /// 3) 실패 시 예외를 그대로 rethrow — View 가 catch 해서 SnackBar 안내.
+  ///    이 때 세션은 살아있고 profiles / storage 는 일부 삭제된 상태일 수 있으나,
+  ///    Repository 의 1·2 단계는 idempotent 하므로 재시도 시 안전하게 완결된다.
   Future<void> deleteAccount() async {
     final repo = ref.read(profileRepositoryProvider);
     await repo.deleteAccount();
+    // 탈퇴 성공: 세션 제거. router redirect 가 /login 으로 이동시킴.
+    await ref.read(authViewModelProvider.notifier).signOut();
   }
 }

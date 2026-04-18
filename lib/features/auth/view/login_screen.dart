@@ -19,15 +19,29 @@ class LoginScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 에러 구독 → SnackBar 표시.
     ref.listen<AsyncValue<dynamic>>(authViewModelProvider, (prev, next) {
-      if (next is AsyncError) {
-        // 사용자 의도적 취소는 에러로 알리지 않음.
-        if (next.error is AuthCancelled) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('로그인에 실패했습니다. 다시 시도해주세요.'),
+      if (next is! AsyncError) return;
+      // 사용자 의도적 취소는 에러로 알리지 않음.
+      if (next.error is AuthCancelled) return;
+
+      final messenger = ScaffoldMessenger.of(context);
+      final Object err = next.error;
+      if (err is CooldownException) {
+        // 탈퇴 후 14일 쿨다운 중 — 남은 일수를 함께 안내.
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              '탈퇴 후 14일이 지나지 않은 계정입니다. (D-${err.remainingDays} 남음)',
+            ),
+            duration: const Duration(seconds: 4),
           ),
         );
+        return;
       }
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('로그인에 실패했습니다. 다시 시도해주세요.'),
+        ),
+      );
     });
 
     final authState = ref.watch(authViewModelProvider);

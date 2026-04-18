@@ -22,7 +22,7 @@ create policy "profiles can be inserted by owner"
   on public.profiles for insert
   with check (auth.uid() = id);
 
--- (선택) auth.users insert trigger: 회원가입 시 profiles row 자동 생성.
+-- auth.users insert trigger: 회원가입 시 profiles row 자동 생성.
 -- DB trigger를 사용하면 클라이언트의 ensureProfileExists() 호출을 생략할 수 있다.
 create or replace function public.handle_new_user()
 returns trigger

@@ -25,6 +25,19 @@ class AuthCancelled extends AuthFailure {
   const AuthCancelled() : super('Google 로그인이 취소되었습니다.');
 }
 
+/// 탈퇴 후 14일 쿨다운이 아직 끝나지 않은 계정으로 재로그인을 시도한 경우.
+///
+/// 스펙: `.claude/agents/logic-implementor/04_profile.md` §7 "14일 쿨다운 강제 흐름".
+/// `signInWithIdToken` 자체는 성공했더라도 `check_signin_cooldown` RPC 가
+/// blocked=true 를 반환하면 Repository 가 즉시 `auth.signOut()` 을 호출해 세션을
+/// 제거하고 이 예외를 throw 한다. View 는 [remainingDays] 를 사용해 남은 일수를
+/// SnackBar 로 안내한다.
+class CooldownException extends AuthFailure {
+  final int remainingDays;
+  const CooldownException(this.remainingDays)
+      : super('탈퇴 후 14일이 지나지 않은 계정입니다.');
+}
+
 /// 인증 관련 데이터 접근 레이어.
 ///
 /// 네이티브 Google Sign-In SDK → idToken → Supabase `signInWithIdToken`
@@ -86,6 +99,12 @@ class SupabaseAuthRepository implements AuthRepository {
         idToken: idToken,
         accessToken: googleAuth.accessToken,
       );
+
+      // 14일 재가입 쿨다운 체크 (04_profile.md §7).
+      // 세션이 이미 생긴 직후에 호출해야 auth.jwt() 가 현재 사용자 claim 을 반환한다.
+      // 쿨다운 활성이면 세션을 즉시 제거하고 [CooldownException] 을 throw 해
+      // ViewModel 이 AsyncError 로 전이시키도록 한다.
+      await _enforceSigninCooldown();
     } on AuthFailure {
       rethrow;
     } on AuthException catch (e) {
@@ -94,6 +113,43 @@ class SupabaseAuthRepository implements AuthRepository {
     } catch (e) {
       debugPrint('[AuthRepository] 예기치 않은 오류: $e');
       throw AuthFailure('로그인에 실패했습니다.', e);
+    }
+  }
+
+  /// 로그인 직후 14일 쿨다운 RPC 를 호출해 재가입 차단 여부를 확인한다.
+  ///
+  /// 스펙: `.claude/agents/logic-implementor/04_profile.md` §7 "14일 쿨다운 강제 흐름".
+  /// - blocked=false → 무시하고 진행 (정상 로그인).
+  /// - blocked=true  → 즉시 Supabase + Google 세션 제거, [CooldownException] throw.
+  /// - RPC 호출 자체가 실패한 경우 (네트워크 등) → fail-open 하지 않고 에러를
+  ///   띄워 사용자가 재시도하도록 한다. 쿨다운을 놓치는 것보다 "잠시 후 다시
+  ///   시도" 메시지가 안전하다.
+  Future<void> _enforceSigninCooldown() async {
+    try {
+      final dynamic raw = await _client.rpc('check_signin_cooldown');
+      // RPC 가 `returns table(...)` 이므로 List<Map> 으로 내려온다. 빈 리스트 방어.
+      final List<dynamic> rows = raw is List<dynamic> ? raw : const [];
+      if (rows.isEmpty) return;
+      final Map<String, dynamic> row = rows.first as Map<String, dynamic>;
+      final bool blocked = row['blocked'] == true;
+      if (!blocked) return;
+
+      final int remainingDays =
+          (row['remaining_days'] as num?)?.toInt() ?? 14;
+
+      // 세션 제거 — 방금 만들어진 Supabase 세션 + 네이티브 Google 캐시 모두.
+      await _client.auth.signOut();
+      await _googleSignIn.signOut();
+
+      throw CooldownException(remainingDays);
+    } on AuthFailure {
+      rethrow;
+    } catch (e) {
+      debugPrint('[AuthRepository] check_signin_cooldown 실패: $e');
+      // RPC 호출 실패 — 세션이 이미 만들어진 상태라 안전하게 원복.
+      await _client.auth.signOut();
+      await _googleSignIn.signOut();
+      throw AuthFailure('쿨다운 확인에 실패했습니다. 잠시 후 다시 시도해주세요.', e);
     }
   }
 

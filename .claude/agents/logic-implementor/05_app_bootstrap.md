@@ -439,7 +439,8 @@ void _onTabTapped(int index) {
 - [ ] `lib/shared/models/profile.dart` 작성
 - [ ] `lib/shared/models/todo.dart` 작성
 - [ ] Supabase 대시보드: `profiles`, `todos` 테이블 + RLS + `profile-images` 버킷
-- [ ] (선택) `handle_new_user` trigger / `delete-account` Edge Function
+- [ ] `handle_new_user` trigger (회원가입 시 `profiles` 자동 생성 — `01_auth.md` 참조)
+- [ ] `delete-account` Edge Function (회원탈퇴 시 `auth.users` 삭제 + 쿨다운 기록 — `04_profile.md` §7 참조)
 - [ ] 3개 탭 View의 BottomNav `_onTabTapped`를 `StatefulNavigationShell.goBranch(index)`로 교체
 - [ ] `Navigator.pushReplacement` / `Navigator.push(MaterialPageRoute)` 잔존 호출 모두 제거
 - [ ] `flutter analyze` 통과
