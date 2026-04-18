@@ -131,10 +131,66 @@ class SupabaseProfileRepository implements ProfileRepository {
     }
   }
 
+  /// 회원탈퇴.
+  ///
+  /// 스펙: `.claude/agents/logic-implementor/04_profile.md` §7.
+  ///
+  /// 1) Storage `<userId>/` 하위 파일 정리 (best-effort — 실패해도 진행)
+  /// 2) `profiles` row 삭제 (RLS: 본인 row 만, 이미 없어도 no-op)
+  /// 3) Edge Function `delete-account` 호출
+  ///    - JWT 검증 → `deleted_accounts` INSERT → `auth.admin.deleteUser`
+  ///    - `todos` 는 `auth.users` cascade 로 함께 삭제됨
+  ///
+  /// signOut 은 여기서 호출하지 않는다 — 호출 측(ViewModel)의 책임.
+  /// 3) 단계가 실패하면 사용자 데이터가 부분 삭제된 상태가 되지만, 1·2 는
+  /// idempotent 하므로 사용자가 다시 "회원탈퇴" 를 눌렀을 때 안전하게 재시도
+  /// 된다.
   @override
   Future<void> deleteAccount() async {
-    // TODO(profile-logic): Edge Function 또는 서비스 역할 키를 통한 계정 삭제 구현.
-    throw UnimplementedError('deleteAccount 는 Edge Function 연동 후 구현 예정');
+    final User? user = _client.auth.currentUser;
+    if (user == null) {
+      throw StateError('deleteAccount: 로그인 세션이 없습니다.');
+    }
+    final String userId = user.id;
+
+    // 1) Storage <userId>/ 하위 파일 best-effort 정리.
+    //    list → remove 2-step. 파일이 없거나 조회에 실패해도 조용히 넘긴다.
+    try {
+      final List<FileObject> files =
+          await _client.storage.from(_storageBucket).list(path: userId);
+      if (files.isNotEmpty) {
+        final List<String> paths =
+            files.map((FileObject f) => '$userId/${f.name}').toList();
+        await _client.storage.from(_storageBucket).remove(paths);
+      }
+    } catch (e) {
+      debugPrint('[ProfileRepository] storage 정리 실패 (무시): $e');
+    }
+
+    // 2) profiles row 삭제. row 가 없어도 delete().eq 는 정상 응답.
+    try {
+      await _client.from('profiles').delete().eq('id', userId);
+    } catch (e) {
+      debugPrint('[ProfileRepository] profiles 삭제 실패: $e');
+      rethrow;
+    }
+
+    // 3) Edge Function 호출. Supabase SDK 가 현재 세션 JWT 를 Authorization
+    //    헤더로 자동 주입한다. non-2xx 응답은 예외로 변환해 ViewModel 에서
+    //    SnackBar 표시로 이어진다.
+    try {
+      final FunctionResponse resp =
+          await _client.functions.invoke('delete-account');
+      final int status = resp.status;
+      if (status < 200 || status >= 300) {
+        throw StateError(
+          'delete-account Edge Function 실패: status=$status, body=${resp.data}',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ProfileRepository] delete-account 호출 실패: $e');
+      rethrow;
+    }
   }
 }
 
