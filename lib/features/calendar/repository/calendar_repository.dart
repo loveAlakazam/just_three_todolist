@@ -22,18 +22,15 @@ abstract class CalendarRepository {
   });
 }
 
+/// Supabase RPC `get_monthly_achievement(p_year, p_month)` 를 호출해
+/// 서버에서 집계된 일자별 달성률을 가져온다.
+///
+/// RPC 는 `todos` 를 DB 레벨에서 GROUP BY + 반올림까지 수행해
+/// `[{day: 1, rate: 0.67}, ...]` 형태로 반환한다. 클라이언트에서는
+/// `Map<int, double>` 로 매핑만 수행. 자세한 SQL 정의는
+/// `supabase/migrations/20260418000004_add_get_monthly_achievement_rpc.sql` 참조.
 class SupabaseCalendarRepository implements CalendarRepository {
   SupabaseClient get _client => SupabaseService.client;
-
-  /// 현재 로그인 user id (RLS 와 별개로 명시적 필터에도 사용).
-  /// ViewModel 은 로그인 상태를 가정하므로 non-null 전제.
-  String get _uid {
-    final String? uid = _client.auth.currentUser?.id;
-    if (uid == null) {
-      throw StateError('CalendarRepository 는 로그인 상태에서만 사용할 수 있습니다.');
-    }
-    return uid;
-  }
 
   @override
   Future<Map<int, double>> getMonthlyAchievement({
@@ -41,57 +38,27 @@ class SupabaseCalendarRepository implements CalendarRepository {
     required int month,
   }) async {
     try {
-      final String from = _formatDate(DateTime(year, month, 1));
-      // 다음 달 1일 전날 = 이번 달 말일.
-      final String toExclusive = _formatDate(DateTime(year, month + 1, 1));
+      final List<dynamic> rows = await _client.rpc(
+        'get_monthly_achievement',
+        params: <String, dynamic>{'p_year': year, 'p_month': month},
+      ) as List<dynamic>;
 
-      final List<Map<String, dynamic>> rows = await _client
-          .from('todos')
-          .select('date, is_completed')
-          .eq('user_id', _uid)
-          .gte('date', from)
-          .lt('date', toExclusive);
-
-      final Map<int, _DayCount> byDay = <int, _DayCount>{};
-      for (final Map<String, dynamic> row in rows) {
-        final int day = DateTime.parse(row['date'] as String).day;
-        final _DayCount entry = byDay[day] ?? const _DayCount();
-        byDay[day] = entry.increment(
-          done: (row['is_completed'] as bool?) ?? false,
-        );
+      final Map<int, double> result = <int, double>{};
+      for (final dynamic raw in rows) {
+        final Map<String, dynamic> row = raw as Map<String, dynamic>;
+        final int day = (row['day'] as num).toInt();
+        // Postgres numeric 은 json 직렬화 시 문자열로 내려올 수 있어 안전하게 parse.
+        final dynamic rateValue = row['rate'];
+        final double rate = rateValue is num
+            ? rateValue.toDouble()
+            : double.parse(rateValue as String);
+        result[day] = rate;
       }
-
-      return byDay.map((int day, _DayCount c) {
-        final double raw = c.total == 0 ? 0.0 : c.done / c.total;
-        // 셋째 자리 반올림 → 둘째 자리 유지.
-        final double normalized = (raw * 100).round() / 100;
-        return MapEntry<int, double>(day, normalized);
-      });
+      return result;
     } catch (e) {
       debugPrint('[CalendarRepository] getMonthlyAchievement 실패: $e');
       rethrow;
     }
-  }
-
-  static String _formatDate(DateTime date) {
-    final String yyyy = date.year.toString().padLeft(4, '0');
-    final String mm = date.month.toString().padLeft(2, '0');
-    final String dd = date.day.toString().padLeft(2, '0');
-    return '$yyyy-$mm-$dd';
-  }
-}
-
-class _DayCount {
-  const _DayCount({this.total = 0, this.done = 0});
-
-  final int total;
-  final int done;
-
-  _DayCount increment({required bool done}) {
-    return _DayCount(
-      total: total + 1,
-      done: this.done + (done ? 1 : 0),
-    );
   }
 }
 
