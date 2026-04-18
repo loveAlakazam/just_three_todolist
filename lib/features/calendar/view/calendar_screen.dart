@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/calendar_grid.dart';
+import '../viewmodel/calendar_view_model.dart';
 
 /// 캘린더 화면.
 ///
@@ -18,16 +20,20 @@ import '../../../shared/widgets/calendar_grid.dart';
 /// - 최소 월: 2026년 4월 → 좌측 화살표 비활성
 /// - 우측 화살표: 항상 활성
 ///
-/// MVP UI 단계 — 달성률 데이터는 빈 Map으로 초기화한다.
-/// ViewModel / Repository 연결은 후속 작업에서 진행.
-class CalendarScreen extends StatefulWidget {
+/// 데이터:
+/// - `calendarViewModelProvider((year, month))` 를 구독해 일자별 달성률을 받는다.
+/// - 월 이동 시 `_displayMonth` 만 `setState` 로 갱신하면 family 가 새 월의
+///   데이터를 자동으로 fetch 한다.
+/// - 로딩: 그리드 영역에 빈 Map 을 넘겨 스티커 없이 표시.
+/// - 에러: SnackBar 로 알림.
+class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({super.key});
 
   @override
-  State<CalendarScreen> createState() => _CalendarScreenState();
+  ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
+class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   static const Color _primary = Color(0xFF512DA8);
   static const Color _bg = Color(0xFFF3F4EB);
   static final DateTime _minMonth = DateTime(2026, 4);
@@ -63,11 +69,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
   /// 오늘 날짜.
   final DateTime _today = DateTime.now();
 
-  /// 일자(`day`)별 달성률. ViewModel 연결 전까지 빈 Map.
-  final Map<int, double> _achievementRates = <int, double>{};
-
   /// 현재 선택된 BottomNavigation 인덱스 (0: Calendar, 1: To Do, 2: My)
   static const int _tabIndex = 0;
+
+  CalendarMonth get _monthKey =>
+      (year: _displayMonth.year, month: _displayMonth.month);
 
   /// BottomNavigationBar 탭 핸들러.
   ///
@@ -93,8 +99,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
     });
   }
 
+  void _showError(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
   /// 색상별 스티커가 붙은 날짜 수 집계.
-  ({int red, int yellow, int green, int blue}) _countByColor() {
+  ({int red, int yellow, int green, int blue}) _countByColor(
+    Map<int, double> rates,
+  ) {
     int red = 0;
     int yellow = 0;
     int green = 0;
@@ -105,7 +118,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       0,
     ).day;
     for (int day = 1; day <= daysInMonth; day++) {
-      final double rate = _achievementRates[day] ?? 0;
+      final double rate = rates[day] ?? 0;
       if (rate <= 0) continue;
       if (rate < 0.30) {
         red++;
@@ -122,6 +135,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final AsyncValue<Map<int, double>> ratesAsync =
+        ref.watch(calendarViewModelProvider(_monthKey));
+
+    // 에러 상태로 "처음 전환될 때만" SnackBar 표시 (Todo 화면과 동일 패턴).
+    ref.listen<AsyncValue<Map<int, double>>>(
+      calendarViewModelProvider(_monthKey),
+      (prev, next) {
+        if (next is AsyncError && prev is! AsyncError) {
+          _showError('달성률을 불러오지 못했어요.');
+        }
+      },
+    );
+
+    // 로딩/에러 시 스티커 없이 빈 그리드를 보여준다.
+    final Map<int, double> rates = ratesAsync.value ?? const <int, double>{};
+
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
@@ -134,7 +163,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 children: <Widget>[
                   _buildMonthHeader(),
                   const SizedBox(height: 16),
-                  _buildLegendBar(),
+                  _buildLegendBar(rates),
                   const SizedBox(height: 20),
                   _buildWeekdayHeader(),
                   const SizedBox(height: 5),
@@ -142,7 +171,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     child: CalendarGrid(
                       displayMonth: _displayMonth,
                       today: _today,
-                      achievementRates: _achievementRates,
+                      achievementRates: rates,
                     ),
                   ),
                 ],
@@ -210,8 +239,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   // ────────────────────── 달성률 범례 바 ──────────────────────
-  Widget _buildLegendBar() {
-    final ({int red, int yellow, int green, int blue}) counts = _countByColor();
+  Widget _buildLegendBar(Map<int, double> rates) {
+    final ({int red, int yellow, int green, int blue}) counts =
+        _countByColor(rates);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
