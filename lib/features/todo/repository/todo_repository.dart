@@ -49,28 +49,18 @@ class SupabaseTodoRepository implements TodoRepository {
     return uid;
   }
 
-  /// `date` 컬럼은 PostgreSQL `date` 타입 (YYYY-MM-DD).
-  String _formatDate(DateTime date) {
-    final String yyyy = date.year.toString().padLeft(4, '0');
-    final String mm = date.month.toString().padLeft(2, '0');
-    final String dd = date.day.toString().padLeft(2, '0');
-    return '$yyyy-$mm-$dd';
-  }
-
   @override
   Future<List<Todo>> getTodosByDate(DateTime date) async {
     try {
-      final rows = await _client
+      final List<Map<String, dynamic>> rows = await _client
           .from('todos')
           .select()
           .eq('user_id', _uid)
-          .eq('date', _formatDate(date))
+          .eq('date', Todo.formatDate(date))
           .order('is_completed', ascending: true)
           .order('order_index', ascending: true);
 
-      return (rows as List)
-          .map((row) => Todo.fromMap(row as Map<String, dynamic>))
-          .toList();
+      return rows.map(Todo.fromMap).toList();
     } catch (e) {
       debugPrint('[TodoRepository] getTodosByDate 실패: $e');
       rethrow;
@@ -83,11 +73,11 @@ class SupabaseTodoRepository implements TodoRepository {
     required int orderIndex,
   }) async {
     try {
-      final row = await _client
+      final Map<String, dynamic> row = await _client
           .from('todos')
           .insert({
             'user_id': _uid,
-            'date': _formatDate(date),
+            'date': Todo.formatDate(date),
             'text': '',
             'is_completed': false,
             'order_index': orderIndex,
@@ -141,8 +131,9 @@ class SupabaseTodoRepository implements TodoRepository {
   @override
   Future<List<Todo>> createDefaultTodos(DateTime date) async {
     try {
-      final dateStr = _formatDate(date);
-      final payload = List<Map<String, dynamic>>.generate(
+      final String dateStr = Todo.formatDate(date);
+      final List<Map<String, dynamic>> payload =
+          List<Map<String, dynamic>>.generate(
         3,
         (i) => {
           'user_id': _uid,
@@ -153,11 +144,10 @@ class SupabaseTodoRepository implements TodoRepository {
         },
       );
 
-      final rows = await _client.from('todos').insert(payload).select();
+      final List<Map<String, dynamic>> rows =
+          await _client.from('todos').insert(payload).select();
 
-      final todos = (rows as List)
-          .map((row) => Todo.fromMap(row as Map<String, dynamic>))
-          .toList()
+      final List<Todo> todos = rows.map(Todo.fromMap).toList()
         ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
       return todos;

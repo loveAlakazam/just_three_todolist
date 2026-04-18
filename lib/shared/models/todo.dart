@@ -41,7 +41,7 @@ class Todo {
     return {
       'id': id,
       'user_id': userId,
-      'date': _formatDate(date),
+      'date': formatDate(date),
       'text': text,
       'is_completed': isCompleted,
       'order_index': orderIndex,
@@ -69,7 +69,8 @@ class Todo {
   }
 
   /// Supabase `date` 컬럼은 `YYYY-MM-DD` 문자열로 저장된다.
-  static String _formatDate(DateTime date) {
+  /// Repository 등 다른 레이어에서도 재사용하도록 public 으로 노출.
+  static String formatDate(DateTime date) {
     final String yyyy = date.year.toString().padLeft(4, '0');
     final String mm = date.month.toString().padLeft(2, '0');
     final String dd = date.day.toString().padLeft(2, '0');

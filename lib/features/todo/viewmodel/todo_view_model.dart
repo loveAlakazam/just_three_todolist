@@ -158,6 +158,12 @@ class TodoViewModel extends AsyncNotifier<List<Todo>> {
   }
 
   /// 입력 중 텍스트 갱신. state 는 즉시 갱신, DB 는 debounce 후 저장.
+  ///
+  /// state 와 DB 는 항상 **raw text** 로 동일하게 유지한다.
+  /// (이전에는 DB 쪽만 `trim()` 되어 세션 중 raw text 와 앱 재시작 후 트림된 값이
+  /// 달라지는 불일치가 있었음 → 세션 중 커서 이동을 방해하지 않으면서도
+  /// 양쪽을 같은 값으로 유지하기 위해 트림 제거. 빈 문자열 같은 표시용 정리는
+  /// 필요 시 뷰 레이어에서 수행)
   void updateText(String id, String text) {
     final current = state.value;
     if (current == null) return;
@@ -191,7 +197,7 @@ class TodoViewModel extends AsyncNotifier<List<Todo>> {
 
     final repo = ref.read(todoRepositoryProvider);
     try {
-      await repo.updateTodoText(id, text.trim());
+      await repo.updateTodoText(id, text);
     } catch (e) {
       debugPrint('[TodoViewModel] updateTodoText 실패 (state 유지): $e');
     }

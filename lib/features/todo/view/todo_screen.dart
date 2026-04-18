@@ -66,8 +66,6 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
   Widget build(BuildContext context) {
     final AsyncValue<List<Todo>> todosAsync =
         ref.watch(todoViewModelProvider(_date));
-    final TodoViewModel notifier =
-        ref.read(todoViewModelProvider(_date).notifier);
 
     // 에러 상태로 "처음 전환될 때만" SnackBar 표시.
     // (build 안에서 addPostFrameCallback 을 쓰면 리빌드마다 등록되어 중복 표시됨)
@@ -79,6 +77,12 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
         }
       },
     );
+
+    // canAddMore 는 watch 된 state 길이에서 직접 계산 (ViewModel 의 getter 와 동일 로직).
+    // build() 안에서 ref.read(provider.notifier) 를 호출하면
+    // `avoid_read_inside_build` 린트 규칙이 경고하므로, notifier 호출은 모두 콜백 내부에서만 수행.
+    final int currentCount = todosAsync.value?.length ?? 0;
+    final bool canAddMore = currentCount < kMaxTodoCount;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4EB),
@@ -105,7 +109,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
                 child: todosAsync.when(
                   loading: () => _buildLoading(),
                   error: (err, _) => _buildError(err),
-                  data: (todos) => _buildContent(todos, notifier),
+                  data: _buildContent,
                 ),
               ),
 
@@ -116,10 +120,12 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: (_isToday && notifier.canAddMore)
+                  onPressed: (_isToday && canAddMore)
                       ? () async {
                           try {
-                            await notifier.addTodo();
+                            await ref
+                                .read(todoViewModelProvider(_date).notifier)
+                                .addTodo();
                           } catch (_) {
                             _showError('목표를 추가하지 못했어요. 잠시 후 다시 시도해주세요.');
                           }
@@ -174,7 +180,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
     );
   }
 
-  Widget _buildContent(List<Todo> todos, TodoViewModel notifier) {
+  Widget _buildContent(List<Todo> todos) {
     final int completedCount = todos.where((t) => t.isCompleted).length;
 
     return Column(
@@ -195,17 +201,24 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
                       text: todo.text,
                       isCompleted: todo.isCompleted,
                       isEditable: _isToday,
-                      onChanged: (String v) => notifier.updateText(todo.id, v),
+                      // 콜백 내부에서 notifier 를 조회 (build 에서 ref.read 회피)
+                      onChanged: (String v) => ref
+                          .read(todoViewModelProvider(_date).notifier)
+                          .updateText(todo.id, v),
                       onToggle: () async {
                         try {
-                          await notifier.toggleComplete(todo.id);
+                          await ref
+                              .read(todoViewModelProvider(_date).notifier)
+                              .toggleComplete(todo.id);
                         } catch (_) {
                           _showError('달성 상태를 저장하지 못했어요.');
                         }
                       },
                       onDelete: () async {
                         try {
-                          await notifier.deleteTodo(todo.id);
+                          await ref
+                              .read(todoViewModelProvider(_date).notifier)
+                              .deleteTodo(todo.id);
                         } catch (_) {
                           _showError('목표를 삭제하지 못했어요.');
                         }
