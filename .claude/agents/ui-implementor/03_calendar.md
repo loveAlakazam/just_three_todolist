@@ -37,18 +37,23 @@ Scaffold (bg: #f3f4eb)
 
 - 7열 GridView, 해당 월 날짜 배치 (1일 요일 오프셋 계산)
 - 각 날짜 셀:
-  ```
+
+  ```text
   Stack
-   ├─ Container(circle, #512DA8)  ← 오늘 날짜만
-   ├─ Text(날짜 숫자)
-   └─ Positioned(bottom) Container(circle, 스티커색)  ← 달성률 > 0인 날만
+   ├─ Align(topCenter) Container(circle 24, #512DA8) + Text(날짜 숫자)  ← 오늘 날짜만 배경색 적용
+   └─ Align(center)    AchievementSticker(size: 18)                    ← 달성률 > 0 인 날만
   ```
+
+  - 날짜 숫자 블록: top padding 6 + 지름 24 의 circle 을 `Align.topCenter` 로 상단 고정.
+  - AchievementSticker: `Align.center` 로 **셀 정중앙** 배치 (기존 `Alignment.bottomCenter` 에서 변경). 지름 18, 색상은 `resolveColor(rate)` 로 결정.
+  - 셀 높이가 56px 이상이면 상단 날짜 원(0~30px)과 중앙 스티커(중앙 기준 ±9px)가 겹치지 않음.
 - 날짜 탭: 인터랙션 없음 (GestureDetector 불필요)
 
 ### AchievementSticker (`lib/shared/widgets/achievement_sticker.dart`)
 
-- 파라미터: `rate` (double)
+- 파라미터: `rate` (double), `size` (double, 기본 18)
 - 달성률에 따라 원형 컨테이너 색상 결정
+- 캘린더 그리드에서 호출 시 `size: 18` 을 명시적으로 지정 (기본값과 동일하지만, 셀 중앙 배치 기준치를 스펙에 고정하기 위함)
 
 ## 월 네비게이션 규칙
 

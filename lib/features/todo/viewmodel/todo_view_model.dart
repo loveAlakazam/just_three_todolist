@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/models/todo.dart';
+import '../../calendar/viewmodel/calendar_view_model.dart';
 import '../repository/todo_repository.dart';
 
 /// 하루 최대 todo 개수. 클라이언트 검증용 (DB 제약은 선택사항).
@@ -53,6 +54,15 @@ class TodoViewModel extends AsyncNotifier<List<Todo>> {
   /// 더 추가할 수 있는가. View 에서 버튼 활성/비활성 판단에 사용.
   bool get canAddMore => (state.value?.length ?? 0) < kMaxTodoCount;
 
+  /// 이 ViewModel 이 다루는 날짜의 (year, month) 키. 캘린더 invalidate 용.
+  CalendarMonth get _monthKey => (year: date.year, month: date.month);
+
+  /// Todo 변경 직후 해당 월의 캘린더 달성률 캐시를 무효화.
+  /// 사용자가 캘린더 탭으로 이동했을 때 즉시 최신 달성률을 보도록 한다.
+  void _invalidateCalendar() {
+    ref.invalidate(calendarViewModelProvider(_monthKey));
+  }
+
   /// 목록 정렬: 미달성(false) 먼저 → 달성(true) 나중.
   /// 같은 그룹 내에서는 `orderIndex` 오름차순.
   static List<Todo> _sorted(List<Todo> list) {
@@ -83,6 +93,7 @@ class TodoViewModel extends AsyncNotifier<List<Todo>> {
 
     final created = await repo.createTodo(date: date, orderIndex: nextIndex);
     state = AsyncData(_sorted([...current, created]));
+    _invalidateCalendar();
   }
 
   /// 완료 토글. 낙관적 업데이트 후 실패 시 rollback.
@@ -107,6 +118,7 @@ class TodoViewModel extends AsyncNotifier<List<Todo>> {
     final repo = ref.read(todoRepositoryProvider);
     try {
       await repo.updateTodoCompletion(id, optimistic.isCompleted);
+      _invalidateCalendar();
     } catch (e) {
       debugPrint('[TodoViewModel] toggleComplete 실패 → rollback: $e');
       final rolled = state.value;
@@ -149,6 +161,7 @@ class TodoViewModel extends AsyncNotifier<List<Todo>> {
     final repo = ref.read(todoRepositoryProvider);
     try {
       await repo.deleteTodo(id);
+      _invalidateCalendar();
     } catch (e) {
       debugPrint('[TodoViewModel] deleteTodo 실패 → rollback: $e');
       final rolled = state.value ?? const <Todo>[];

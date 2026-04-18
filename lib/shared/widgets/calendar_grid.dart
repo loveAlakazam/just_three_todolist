@@ -8,9 +8,8 @@ import 'achievement_sticker.dart';
 /// - 각 날짜 셀은 다음 레이어로 구성된다:
 ///   ```
 ///   Stack
-///    ├─ Container(circle, #512DA8)  ← 오늘 날짜만
-///    ├─ Text(날짜 숫자)
-///    └─ Positioned(bottom) AchievementSticker  ← 달성률 > 0인 날만
+///    ├─ Align(topCenter) Container(circle 24, #512DA8) + Text(날짜 숫자)  ← 오늘만 보라 배경
+///    └─ Align(center)    AchievementSticker(size: 18)                    ← 달성률 > 0 인 날만
 ///   ```
 /// - 날짜 탭 인터랙션은 v1.0.0 스펙상 없음.
 class CalendarGrid extends StatelessWidget {
@@ -90,7 +89,7 @@ class CalendarGrid extends StatelessWidget {
   }) {
     // 날짜 숫자: 세로 상단 + 가로 중앙 정렬.
     // 오늘 강조 원은 숫자를 감싸는 형태로 상단에 함께 배치.
-    // 스티커는 셀 하단 중앙.
+    // 스티커는 셀 정중앙 (날짜 숫자와 겹치지 않도록 셀 높이 60px 이상 전제).
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: const Color(0xFFD8D5C8), width: 0.5),
@@ -123,11 +122,8 @@ class CalendarGrid extends StatelessWidget {
             ),
           ),
           Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: AchievementSticker(rate: rate, size: 8),
-            ),
+            alignment: Alignment.center,
+            child: AchievementSticker(rate: rate, size: 18),
           ),
         ],
       ),
