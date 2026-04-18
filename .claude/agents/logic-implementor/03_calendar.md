@@ -170,7 +170,7 @@ class CalendarViewModel extends _$CalendarViewModel {
 
 > 추가 테이블 없음. `02_todo.md`의 `todos` 테이블만 사용.
 
-### (선택) 성능을 위한 RPC
+### 성능을 위한 RPC
 
 #### 목적
 
@@ -237,5 +237,5 @@ final rows = await supabase.rpc('get_monthly_achievement', params: {
 - [ ] `calendar_screen.dart`를 `ConsumerStatefulWidget`으로 변환 + 콜백 연결
 - [ ] 둘째자리 반올림 정책 검증
 - [ ] Todo의 `toggleComplete` 등에서 `ref.invalidate(calendarViewModelProvider(...))` 호출 추가
-- [ ] (선택) Supabase RPC 함수 생성
+- [ ] Supabase RPC 함수 생성
 - [ ] 수동 테스트: 월 이동 / 0% 처리 / 색상 경계값 (29.99% / 30% / 59.99% / 60% / 99.99% / 100%)
