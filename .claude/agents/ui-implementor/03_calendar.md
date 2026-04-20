@@ -2,10 +2,22 @@
 
 **파일**: `lib/features/calendar/view/calendar_screen.dart`
 
+## 작업 브랜치 (git-flow)
+
+- 캘린더 화면 UI 구현 및 개발 작업은 **반드시 `feature/calendar` 브랜치에서 진행**한다.
+- 작업 시작 전 현재 브랜치를 확인하고, 다른 브랜치라면 `feature/calendar`로 전환한 후 작업한다.
+- `feature/calendar` 브랜치가 없다면 **`develop`에서 분기**하여 생성한다 (`main`에서 분기 금지).
+  ```bash
+  git checkout develop && git pull origin develop
+  git checkout -b feature/calendar
+  ```
+- 작업 완료 후 PR 생성 시 **base 브랜치는 `develop`**으로 지정한다. `/pull-request` 커맨드는 이미 `develop`을 기본 base로 사용한다.
+- 전체 브랜치/릴리즈 전략은 `.claude/rules/git-flow.md` 참조.
+
 ## 레이아웃
 
 ```
-Scaffold (bg: #dee0df)
+Scaffold (bg: #f3f4eb)
 └─ SafeArea
    └─ Stack
       ├─ Column
@@ -25,23 +37,40 @@ Scaffold (bg: #dee0df)
 
 - 7열 GridView, 해당 월 날짜 배치 (1일 요일 오프셋 계산)
 - 각 날짜 셀:
-  ```
+
+  ```text
   Stack
-   ├─ Container(circle, #512DA8)  ← 오늘 날짜만
-   ├─ Text(날짜 숫자)
-   └─ Positioned(bottom) Container(circle, 스티커색)  ← 달성률 > 0인 날만
+   ├─ Align(topCenter) Container(circle 24, #512DA8) + Text(날짜 숫자)  ← 오늘 날짜만 배경색 적용
+   └─ Align(center)    AchievementSticker(size: 18)                    ← 달성률 > 0 인 날만
   ```
+
+  - 날짜 숫자 블록: top padding 6 + 지름 24 의 circle 을 `Align.topCenter` 로 상단 고정.
+  - AchievementSticker: `Align.center` 로 **셀 정중앙** 배치 (기존 `Alignment.bottomCenter` 에서 변경). 지름 18, 색상은 `resolveColor(rate)` 로 결정.
+  - 셀 높이가 56px 이상이면 상단 날짜 원(0~30px)과 중앙 스티커(중앙 기준 ±9px)가 겹치지 않음.
 - 날짜 탭: 인터랙션 없음 (GestureDetector 불필요)
 
 ### AchievementSticker (`lib/shared/widgets/achievement_sticker.dart`)
 
-- 파라미터: `rate` (double)
+- 파라미터: `rate` (double), `size` (double, 기본 18)
 - 달성률에 따라 원형 컨테이너 색상 결정
+- 캘린더 그리드에서 호출 시 `size: 18` 을 명시적으로 지정 (기본값과 동일하지만, 셀 중앙 배치 기준치를 스펙에 고정하기 위함)
 
 ## 월 네비게이션 규칙
 
 - 최소 월: `DateTime(2026, 4)` → 좌측 버튼 `onPressed: null`
 - 우측 버튼: 항상 활성
+
+## BottomNavigationBar 동작
+
+- `currentIndex = 0` (Calendar 활성).
+- 탭별 이동:
+  | 인덱스 | 라벨 | 동작 |
+  |--------|------|------|
+  | 0 | Calendar | 현재 화면 — no-op |
+  | 1 | To Do | `TodoScreen`으로 화면 전환 (replace) |
+  | 2 | My | `MyScreen`으로 화면 전환 (replace) — 미구현 시 `// TODO(my-page)` 주석 |
+- go_router 도입 전: `Navigator.pushReplacement(MaterialPageRoute(builder: (_) => const TodoScreen()))`.
+- 공통 규칙은 `.claude/agents/ui-implementor.md` `공유 위젯: BottomNavigationBar` 절 참고.
 
 ## ? 버튼 팝업
 

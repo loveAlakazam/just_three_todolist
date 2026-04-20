@@ -26,6 +26,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>프로필 이미지를 변경하려면 사진첩 접근 권한이 필요합니다.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -47,6 +49,23 @@
 			</array>
 		</dict>
 	</dict>
+	<!-- Google Sign-In (네이티브) 설정.
+	     아래 두 값은 Google Cloud Console의 iOS OAuth 2.0 Client ID를 기준으로 직접 채워야 한다.
+	     - GIDClientID: iOS 클라이언트 ID 그대로 (예: 123456789-abcdefg.apps.googleusercontent.com)
+	     - CFBundleURLSchemes: 위 ID를 reversed한 형태 (예: com.googleusercontent.apps.123456789-abcdefg) -->
+	<key>GIDClientID</key>
+	<string>288443837236-pe91uc3ik2o62eue2mm2j9o1e4eac4qj.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.288443837236-pe91uc3ik2o62eue2mm2j9o1e4eac4qj</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

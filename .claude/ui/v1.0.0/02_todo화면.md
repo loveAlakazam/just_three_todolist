@@ -7,9 +7,11 @@
 
 | 항목 | v1.0.0 동작 |
 |------|------------|
-| 달성 체크 방향 | 단방향 (체크 후 해제 불가) |
+| 달성 체크 방향 | 양방향 토글 (오늘 날짜에 한해 체크/해제 모두 가능) |
 | 달성 시 숨김 처리 | **보류** — 달성해도 목록에 계속 표시 |
-| 과거 날짜 목표 | 다음날 0시 이후 읽기 전용 (수정 불가) |
+| 목록 정렬 규칙 | **미달성(`isCompleted == false`) 먼저, 달성(`true`) 나중**. 각 그룹 내에서는 `orderIndex` 오름차순. 달성 토글 시 즉시 재정렬되어 달성된 목표는 목록 맨 아래로 이동한다. |
+| 과거 날짜 목표 | 다음날 0시 이후 읽기 전용 (목표명·달성여부 모두 수정 불가) |
+| 목표 삭제 | 오늘 날짜 + 미달성 상태에서만 가능 (달성된 목표/과거 날짜는 삭제 불가) |
 | 달성 게이지바 색상 | 달성률에 따라 동적 변경 (아래 색상표 참고) |
 
 > **고도화 예정**: 달성 목표 숨김/숨김해제는 마이페이지 설정에서 ON/OFF 토글로 추가 예정 (`.claude/plans/고도화계획.md` 참고)
@@ -30,7 +32,7 @@
 ### 레이아웃 위젯
 | 위젯 | 용도 |
 |------|------|
-| `Scaffold` | 화면 기본 구조, `backgroundColor: Color(0xFFDEE0DF)` |
+| `Scaffold` | 화면 기본 구조, `backgroundColor: Color(0xFFF3F4EB)` |
 | `SafeArea` | 노치/홈바 안전 영역 처리 |
 | `Column` | 전체 수직 레이아웃 |
 | `Expanded` + `SingleChildScrollView` | Todo 리스트 스크롤 영역 |
@@ -40,9 +42,10 @@
 |------|------|
 | `Text` | 날짜 표시 (YYYY.MM.DD), 폰트 `#512DA8` |
 | 커스텀 `SegmentedProgressBar` | 달성 게이지바 |
-| 커스텀 `TodoItemWidget` | 목표 1개 행 (목표 텍스트 + 달성 버튼) |
+| 커스텀 `TodoItemWidget` | 목표 1개 행 (목표 텍스트 + 달성 버튼 + 삭제 버튼) |
 | `TextField` | 목표 텍스트 입력 (최대 20자) |
-| `InkWell` + `Icon` | 달성 체크 버튼 (단방향, 체크 후 해제 불가) |
+| `InkWell` + `Icon` | 달성 체크 버튼 (오늘 날짜에 한해 체크/해제 양방향 토글) |
+| `InkWell` + `Icon (close)` | 목표 삭제 버튼 (오늘 날짜 + 미달성 상태에서만 노출) |
 | `ElevatedButton` | 목표 추가하기 버튼 (`#512DA8`) |
 | `BottomNavigationBar` | 탭 네비게이션 (Calendar / To Do / My) |
 
@@ -58,7 +61,7 @@
 | 60% 이상 ~ 100% 미만 | 초록 | `#13d62d` |
 | 100% | 파랑 | `#46C8FF` |
 
-- 달성 체크가 단방향이므로 게이지바 색상은 단조 증가 → 사이드이펙트 없음
+- 달성 체크 토글에 따라 채워진 세그먼트 수와 게이지 색상이 즉시 갱신됨 (오늘 날짜 한정)
 - 구현: `CustomPainter` 또는 `Row` + `Flexible` 조합
 
 ### BottomNavigationBar
@@ -67,6 +70,13 @@
 | Calendar | - | 기본 텍스트 |
 | To Do | `#512DA8` 배경 + 흰 텍스트 | 기본 텍스트 |
 | My | - | 기본 텍스트 |
+
+#### 탭 동작
+- `currentIndex = 1` (To Do 활성).
+- `0: Calendar` 탭 → `CalendarScreen`으로 화면 전환 (replace).
+- `1: To Do` 탭 → 현재 화면, no-op.
+- `2: My` 탭 → `MyScreen`으로 화면 전환 (replace). MyScreen 미구현 시 코드 단에서 `// TODO(my-page)` 주석.
+- go_router 도입 전: `Navigator.pushReplacement(MaterialPageRoute)`.
 
 ---
 
@@ -83,9 +93,13 @@
 3. `SegmentedProgressBar` 구현
    - 달성률 계산 → 색상 결정 → 채워진 비율 렌더링
 4. `TodoItemWidget` 구현
-   - 오늘 날짜: `TextField` 입력 가능 + 달성 체크 버튼 활성
-   - 과거 날짜: `enabled: false` 읽기 전용 + 체크 버튼 비활성
+   - 오늘 날짜: `TextField` 입력 가능 + 달성 체크 버튼 활성 (체크/해제 양방향 토글)
+   - 오늘 날짜 + 미달성: 우측에 삭제 버튼 노출 (탭 시 해당 항목 즉시 삭제)
+   - 오늘 날짜 + 달성 완료: 삭제 버튼 자리만 유지하고 숨김 (`Visibility.maintainSize`)
+   - 과거 날짜: `enabled: false` 읽기 전용 + 체크/삭제 버튼 모두 비활성 (목표명·달성여부 모두 수정 불가)
 5. `ListView.builder`로 todo 목록 렌더링
+   - 정렬: 미달성(`isCompleted == false`) → 달성(`true`) 순. 각 그룹 내에서는 `orderIndex` 오름차순.
+   - 달성 토글 시 state 에서 즉시 재정렬 → 달성된 목표가 목록 맨 아래로 이동하는 것이 사용자에게 보인다.
 6. 목표 추가하기 버튼: 목표 수 < 10일 때만 활성화 (10개 달성 시 버튼 숨김 또는 비활성)
 7. `TodoViewModel` (Riverpod Provider)과 상태 연결
 
@@ -109,3 +123,4 @@ if rate == 1.00 → #46C8FF
 ### 입력 제한
 - `TextField`: `maxLength: 20` (한글 기준 20자)
 - 목표 추가: 총 개수 10개 초과 불가
+- 목표 삭제: 오늘 날짜 목표 + `isCompleted == false`인 경우에만 허용
