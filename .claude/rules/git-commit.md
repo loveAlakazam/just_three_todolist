@@ -31,6 +31,7 @@ globs:
 | `ci` | CI 설정/스크립트 변경 (GitHub Actions, Jenkins 등) |
 | `revert` | 이전 커밋 되돌리기 |
 | `remove` | 파일 삭제, 코드 제거 |
+| `breaking` | 기존 기능과 호환되지 않는 변경 또는 앱 전면 개편 |
 
 ## 커밋 리셋 규칙
 
@@ -48,4 +49,5 @@ docs: CLAUDE.md 아키텍처 규칙 업데이트
 style: Todo 화면 버튼 색상 디자인 시스템에 맞게 변경
 refactor: TodoItemWidget 공통 위젯으로 분리
 remove: 사용하지 않는 counter 예제 코드 제거
+breaking: Todo 데이터 스키마 전면 변경으로 인한 마이그레이션 필요
 ```
