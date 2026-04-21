@@ -1,0 +1,182 @@
+name: release-publish
+
+# release/* · hotfix/* 브랜치가 main 에 머지되면 자동으로
+#   1) 머지 커밋에 annotated 태그 (vX.Y.Z) 생성 + push
+#   2) GitHub Release 공개 (본문 = PR body)
+# workflow_dispatch 로 수동 트리거도 지원한다 (소급 태깅 / 실패 재실행).
+#
+# 설계 규칙은 .claude/plans/deployment-plan.md 와
+# .claude/rules/git-flow.md 참조.
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '태그 버전 (vX.Y.Z)'
+        required: true
+        type: string
+      sha:
+        description: '태그를 찍을 커밋 SHA (main 에 포함되어야 함)'
+        required: true
+        type: string
+      pr_number:
+        description: '릴리즈 노트 본문을 가져올 PR 번호'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # 트리거 필터:
+    #   - workflow_dispatch: 항상 실행
+    #   - pull_request_target: merged == true 이고, PR 제목이
+    #     "release:" 또는 "hotfix:" 로 시작하는 경우에만 실행
+    #     (release/* 브랜치에서 오는 CI/docs 성격의 PR 은 제외)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       (startsWith(github.event.pull_request.title, 'release:') ||
+        startsWith(github.event.pull_request.title, 'hotfix:')))
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve version / sha / pr_number
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SHA: ${{ inputs.sha }}
+          INPUT_PR: ${{ inputs.pr_number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+            SHA="$INPUT_SHA"
+            PR_NUM="$INPUT_PR"
+          else
+            # "release: v1.2.3" / "hotfix: v1.2.3 버그 요약" 등에서 vX.Y.Z 추출
+            VERSION=$(printf '%s' "$PR_TITLE" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+            SHA="$PR_MERGE_SHA"
+            PR_NUM="$PR_NUMBER"
+          fi
+
+          if [ -z "${VERSION:-}" ]; then
+            echo "::error::버전을 추출할 수 없음 (PR 제목 또는 input 확인)"
+            exit 1
+          fi
+
+          if ! printf '%s' "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::버전 형식 불일치: '$VERSION' (예상: vX.Y.Z)"
+            exit 1
+          fi
+
+          if [ -z "${SHA:-}" ]; then
+            echo "::error::태그를 찍을 SHA 가 비어 있음"
+            exit 1
+          fi
+
+          if [ -z "${PR_NUM:-}" ]; then
+            echo "::error::PR 번호가 비어 있음"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+          echo "버전 = $VERSION / SHA = $SHA / PR = #$PR_NUM"
+
+      - name: Idempotency guard — 태그가 이미 존재하면 스킵
+        id: tag_guard
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.meta.outputs.version }}'
+          git fetch --tags origin
+          if git rev-parse --verify "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::notice::태그 $VERSION 이 이미 존재합니다 → 릴리즈 생성만 시도합니다."
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify SHA is an ancestor of main
+        run: |
+          set -euo pipefail
+          SHA='${{ steps.meta.outputs.sha }}'
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "::error::SHA $SHA 가 origin/main 에 포함되지 않음 → 태그 거부"
+            exit 1
+          fi
+
+      - name: Fetch release notes (PR body)
+        id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUM: ${{ steps.meta.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          gh pr view "$PR_NUM" --json body --jq '.body' > /tmp/release-notes.md
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "::error::PR #$PR_NUM 본문이 비어 있음 → 릴리즈 노트 필수 (게이트 실패)"
+            exit 1
+          fi
+          echo "path=/tmp/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create annotated tag
+        if: steps.tag_guard.outputs.tag_exists != 'true'
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.meta.outputs.version }}'
+          SHA='${{ steps.meta.outputs.sha }}'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$VERSION" "$SHA" -m "릴리즈 $VERSION"
+          git push origin "$VERSION"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA: ${{ steps.meta.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # 이미 존재하면 본문만 갱신, 없으면 새로 생성 (idempotent)
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "::notice::Release $VERSION 이 이미 존재 → 본문 갱신"
+            gh release edit "$VERSION" \
+              --title "$VERSION" \
+              --notes-file /tmp/release-notes.md
+          else
+            gh release create "$VERSION" \
+              --target "$SHA" \
+              --title "$VERSION" \
+              --notes-file /tmp/release-notes.md
+          fi
+
+      - name: Summary
+        run: |
+          VERSION='${{ steps.meta.outputs.version }}'
+          SHA='${{ steps.meta.outputs.sha }}'
+          {
+            echo "## 릴리즈 퍼블리시 완료"
+            echo ""
+            echo "- 버전: \`$VERSION\`"
+            echo "- 커밋: \`$SHA\`"
+            echo "- 트리거: \`${{ github.event_name }}\`"
+            echo "- PR: #${{ steps.meta.outputs.pr_number }}"
+          } >> "$GITHUB_STEP_SUMMARY"

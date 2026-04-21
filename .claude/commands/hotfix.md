@@ -7,8 +7,10 @@
 1. **`main` 에서 분기**한다. `develop` 에서 분기 금지 (develop 의 미출시 기능이 섞이면 안 됨).
 2. **`main` 머지는 PR 경유 (`gh pr merge`)**. 직접 push 금지.
 3. **반드시 `develop` 에도 back-merge** 한다. 생략 시 다음 릴리즈에서 같은 버그 재발.
-4. **패치 태그(`vX.Y.(Z+1)`) + GitHub Release** 는 필수. 릴리즈 노트는 간단해도 반드시 작성.
-5. **force push / 태그 삭제 / 릴리즈 삭제 금지.** 이전 릴리즈 `vX.Y.Z` 의 태그와 릴리즈 노트는 그대로 보존한다 ("어떤 일이 있었고, 어떻게 고쳤는지" 추적 가능하게).
+4. **패치 태그(`vX.Y.(Z+1)`) + GitHub Release** 는 GitHub Actions `release-publish` 워크플로가 자동 생성한다. 로컬/수동 `git tag` · `gh release create` 금지. 실패 시 `workflow_dispatch` 로 재실행.
+5. **PR 제목은 반드시 `hotfix: vX.Y.(Z+1) ...` 형식.** 워크플로가 제목 prefix 로 hotfix PR 을 식별한다.
+6. **PR 본문에 릴리즈 노트를 반드시 작성.** 워크플로가 PR 본문을 그대로 Release 본문으로 사용한다 (비어 있으면 게이트 실패).
+7. **force push / 태그 삭제 / 릴리즈 삭제 금지.** 이전 릴리즈 `vX.Y.Z` 의 태그와 릴리즈 노트는 그대로 보존한다 ("어떤 일이 있었고, 어떻게 고쳤는지" 추적 가능하게).
 
 ## 사전 조건
 
@@ -101,28 +103,33 @@ gh pr merge "$PR_NUMBER" --merge --delete-branch=false
 - `--delete-branch=false` 로 브랜치 유지 (§7 back-merge 후 일괄 정리).
 - 충돌 발생 시 중단하고 사용자에게 알린다. 자동 resolve 금지.
 
-### 6. 패치 태그 + GitHub Release
+### 6. GitHub Actions `release-publish` 워크플로 완료 확인
+
+§5 PR 머지 직후 `.github/workflows/release-publish.yml` 이 자동 실행된다. PR 제목 prefix 가 `hotfix:` 이므로 워크플로 필터를 통과하고, 워크플로가 `vX.Y.(Z+1)` annotated 태그 + GitHub Release 를 자동 생성한다.
+
+**로컬에서 `git tag` / `gh release create` 를 직접 호출하지 않는다.**
 
 ```bash
-git checkout main
-git pull origin main
+# 실행 결과 확인
+gh run list --workflow=release-publish.yml --limit 3
+gh run watch  # 진행 중이면
 
-# annotated 태그
-git tag -a vX.Y.(Z+1) -m "hotfix: <버그 요약>"
-git push origin vX.Y.(Z+1)
-
-# GitHub Release 공개 (릴리즈 노트 필수)
-gh release create vX.Y.(Z+1) \
-  --target main \
-  --title "vX.Y.(Z+1) — Hotfix" \
-  --notes "$(cat <<'EOF'
-<§4 의 hotfix 릴리즈 노트 본문>
-EOF
-)"
+# 태그 / Release 검증
+git fetch --tags origin
+git tag -l vX.Y.*
+gh release view vX.Y.(Z+1) --json url,name
 ```
 
-- 태그는 반드시 main 의 머지 커밋 SHA 에 찍는다.
-- 릴리즈 노트를 생략하고 태그만 push 하는 것은 금지.
+#### 워크플로 실패 복구
+
+```bash
+gh workflow run release-publish.yml \
+  -f version=vX.Y.(Z+1) \
+  -f sha=<머지 커밋 SHA> \
+  -f pr_number=<hotfix PR 번호>
+```
+
+자세한 원인별 대응은 `.claude/commands/release.md` §8 "워크플로 실패 복구" 참조 (hotfix 도 동일 워크플로 사용).
 
 ### 7. `develop` back-merge (필수)
 
@@ -165,6 +172,6 @@ git push origin --delete hotfix/vX.Y.(Z+1)
 ## 실패 / 복구
 
 - **§5 PR 머지 충돌**: hotfix 브랜치에서 `git merge origin/main` 으로 충돌 해결 → 재시도.
-- **§6 태그 생성 실패**: 이미 `vX.Y.(Z+1)` 태그가 존재한다면 이전 hotfix 시도가 중단된 상태일 수 있음. 태그가 가리키는 커밋이 현재 main HEAD 와 일치하는지 확인 후 진행.
+- **§6 워크플로 실행 안 됨 / 실패**: PR 제목 prefix 가 `hotfix:` 아니거나, PR 본문이 비어 있으면 트리거/게이트에서 실패한다. 제목·본문 정정 후 `gh workflow run release-publish.yml -f version=... -f sha=... -f pr_number=...` 로 수동 재실행. 로컬에서 태그 직접 생성 금지.
 - **§7 back-merge 충돌**: develop 의 변경과 충돌 → develop 에서 수동 해결 후 머지. 이 경우에도 force push 금지.
 - **hotfix 자체가 또 다른 버그를 유발**: 또 다른 hotfix (`vX.Y.(Z+2)`) 를 만든다. 이전 hotfix 태그/릴리즈는 그대로 둔다.
