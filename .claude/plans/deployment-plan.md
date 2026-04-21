@@ -83,15 +83,15 @@ main 배포를 진행하기 전 아래 항목을 모두 확인한다.
 6. 릴리즈 노트 작성 (필수 게이트 — 확정 전 §7 진행 불가)
 7. gh pr create --base main --head release/vX.Y.Z
 8. gh pr merge <PR_NUMBER> --merge --delete-branch=false
-9. git checkout main && git pull
-10. git tag -a vX.Y.Z -m "릴리즈 vX.Y.Z" && git push origin vX.Y.Z
-11. gh release create vX.Y.Z --target main --notes "<릴리즈 노트>"
-12. develop 으로 back-merge (버전 bump 동기화)
-13. release/vX.Y.Z 브랜치 삭제
+   ↓ (이 시점 GitHub Actions `release-publish` 가 자동 트리거)
+9. 워크플로 완료 확인 — 태그 vX.Y.Z + GitHub Release 자동 생성 검증
+10. git checkout develop && git pull && git merge --no-ff release/vX.Y.Z
+11. release/vX.Y.Z 브랜치 삭제
 ```
 
 상세 절차: `.claude/commands/release.md`
 트리거: `/release` 슬래시 커맨드
+자동화: `.github/workflows/release-publish.yml` (§ "CI 자동화" 참조)
 
 ---
 
@@ -105,14 +105,66 @@ main 배포를 진행하기 전 아래 항목을 모두 확인한다.
 3. 버그 수정 커밋 (fix: 또는 revert: 접두어)
 4. gh pr create --base main --head hotfix/vX.Y.(Z+1)
 5. gh pr merge --merge
-6. git tag -a vX.Y.(Z+1) && git push origin vX.Y.(Z+1)
-7. gh release create vX.Y.(Z+1) --notes "<hotfix 릴리즈 노트>"
-8. develop 으로 back-merge (동일 버그 재발 방지)
-9. hotfix 브랜치 삭제
+   ↓ (이 시점 GitHub Actions `release-publish` 가 자동 트리거)
+6. 워크플로 완료 확인 — 패치 태그 vX.Y.(Z+1) + GitHub Release 자동 생성 검증
+7. develop 으로 back-merge (동일 버그 재발 방지)
+8. hotfix 브랜치 삭제
 ```
 
 상세 절차: `.claude/commands/hotfix.md`
 트리거: `/hotfix` 슬래시 커맨드
+자동화: `.github/workflows/release-publish.yml` (§ "CI 자동화" 참조)
+
+---
+
+## CI 자동화 (`.github/workflows/release-publish.yml`)
+
+태그 생성과 GitHub Release 공개를 수동 단계에서 분리해, PR 머지 이벤트에 맞춰 GitHub Actions 가 대신 수행한다. 사람/에이전트의 단계 누락(이번 v1.0.0 처럼 태그·Release 누락)을 구조적으로 막기 위함이다.
+
+### 트리거
+
+| 이벤트 | 실행 조건 |
+|--------|----------|
+| `pull_request_target` (closed, base=main) | `merged == true` **AND** PR 제목이 `release:` 또는 `hotfix:` 로 시작 |
+| `workflow_dispatch` | 수동 입력 (version / sha / pr_number) — 소급 태깅 · 실패 복구 용도 |
+
+> ⚠️ release/* 브랜치에서 올라온 **비릴리즈 PR** (예: `ci:`, `docs:` 로 시작)은 필터에 걸려 실행되지 않는다. "릴리즈 PR" 임을 제목 prefix 로 구분한다.
+
+### 작업 순서
+
+1. `main` 체크아웃 (`fetch-depth: 0`)
+2. 메타 추출
+   - PR 제목에서 `vX.Y.Z` 정규식 매칭 → `VERSION`
+   - 머지 커밋 SHA = `pull_request.merge_commit_sha`
+   - PR 번호 = `pull_request.number`
+3. 게이트
+   - 버전 형식 검증 (`^v[0-9]+\.[0-9]+\.[0-9]+$`)
+   - SHA 가 `origin/main` 의 조상인지 `git merge-base --is-ancestor` 로 검증
+   - PR 본문 비어 있으면 실패 (릴리즈 노트 필수)
+   - 동일 태그 이미 존재 → 태그 생성은 스킵, Release 본문만 갱신 (idempotent)
+4. annotated 태그 생성 + push (`git tag -a $VERSION $SHA`)
+5. `gh release create` (이미 있으면 `gh release edit` 로 본문 갱신)
+6. Summary 출력 (버전 / SHA / 트리거 / PR)
+
+### 안전 장치
+
+- `permissions: contents: write, pull-requests: read` — 최소 권한만 부여
+- 태그·Release 양쪽 idempotent → 재실행 가능
+- 실패 시 커맨드 fallback: `.claude/commands/release.md` §8 "워크플로 실패 복구" 절 참조
+- **태그 삭제 / Release 삭제는 절대 금지** (워크플로도 이 동작은 수행하지 않음)
+
+### 소급 적용 · 재실행 방법
+
+이미 머지됐지만 태그·Release 가 없는 릴리즈(예: v1.0.0) 또는 워크플로 실패 시:
+
+```bash
+gh workflow run release-publish.yml \
+  -f version=v1.0.0 \
+  -f sha=<머지 커밋 SHA> \
+  -f pr_number=<릴리즈 PR 번호>
+```
+
+실행 결과는 `gh run list --workflow=release-publish.yml --limit 1` 로 확인.
 
 ---
 
@@ -195,8 +247,8 @@ v1.1.0 배포 후 문제 발견 → hotfix/v1.1.1 분기 → git revert <bad-com
 4. **릴리즈 노트 초안 확정 전 main 머지 금지** — 사용자 승인 후 `gh pr merge`.
 5. **`git push origin main` 직접 호출 금지** — 항상 `gh pr merge` 경유.
 6. **back-merge 생략 금지** — release 브랜치를 develop 에도 반드시 반영.
-7. **annotated 태그만 사용** — `git tag -a vX.Y.Z`. lightweight 태그 금지.
-8. **`gh release create` 반드시 실행** — 태그만 push 하고 GitHub Release 생략 금지.
+7. **태그·GitHub Release 는 워크플로가 자동 생성** — 머지 이후 `gh run list --workflow=release-publish.yml` 로 성공 확인. 실패 시 `workflow_dispatch` 로 재실행 (태그/Release 직접 생성 금지).
+8. **PR 제목은 반드시 `release: vX.Y.Z` 형식** — 제목 prefix 로 워크플로가 릴리즈 PR 을 식별한다.
 
 ### `/hotfix` 실행 시
 
@@ -204,7 +256,8 @@ v1.1.0 배포 후 문제 발견 → hotfix/v1.1.1 분기 → git revert <bad-com
 2. **hotfix 브랜치 내 `git revert` 허용** — 원인 제거 커밋 또는 `git revert` 모두 가능.
 3. **main / develop 에서 직접 `git revert` 금지** — 반드시 hotfix 브랜치 경유.
 4. **develop back-merge 필수** — 핫픽스 내용이 다음 릴리즈에도 반영되어야 함.
-5. **릴리즈 노트 간단해도 반드시 작성** — `gh release create` 생략 금지.
+5. **릴리즈 노트 간단해도 반드시 PR 본문에 작성** — 워크플로가 PR 본문을 Release 노트로 사용한다. 본문이 비면 워크플로가 실패 처리.
+6. **PR 제목은 반드시 `hotfix: vX.Y.(Z+1) ...` 형식** — 워크플로 식별 조건.
 
 ### 공통
 

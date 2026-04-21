@@ -1,14 +1,16 @@
-`develop` 브랜치에 누적된 변경사항을 분석해 다음 릴리즈 버전(`vX.Y.Z`)을 결정하고, git-flow 규칙에 따라 **release 브랜치 생성 → release PR → `main` PR 머지 → `vX.Y.Z` 태그 → GitHub Release 공개 → `develop` back-merge** 까지 처리한다.
+`develop` 브랜치에 누적된 변경사항을 분석해 다음 릴리즈 버전(`vX.Y.Z`)을 결정하고, git-flow 규칙에 따라 **release 브랜치 생성 → release PR → `main` PR 머지 → (GitHub Actions 가 `vX.Y.Z` 태그 + GitHub Release 자동 생성) → `develop` back-merge** 까지 처리한다.
 
-전체 규칙은 `.claude/rules/git-flow.md` 참조. 잘못된 릴리즈 복구는 **`/hotfix` 커맨드만 사용**한다 (revert 금지, 태그/릴리즈 삭제 금지).
+전체 규칙은 `.claude/rules/git-flow.md`, 자동화 설계는 `.claude/plans/deployment-plan.md` § "CI 자동화" 참조. 잘못된 릴리즈 복구는 **`/hotfix` 커맨드만 사용**한다 (revert 금지, 태그/릴리즈 삭제 금지).
 
 ## 절대 규칙 (이 커맨드가 지켜야 하는 것)
 
 1. **`main` 직접 push 금지.** 모든 main 반영은 `gh pr merge` 를 통해 진행한다. 서버 측 branch protection + 로컬 pre-push hook 이 이중으로 차단한다.
-2. **릴리즈 노트 없이 머지 금지.** §6 에서 릴리즈 노트 초안이 확정되기 전에는 `gh pr merge` 로 넘어가지 않는다. 릴리즈 노트는 release PR 본문 + GitHub Release 양쪽에 모두 게시한다.
+2. **릴리즈 노트 없이 머지 금지.** §6 에서 릴리즈 노트 초안이 확정되기 전에는 `gh pr merge` 로 넘어가지 않는다. 릴리즈 노트는 **PR 본문에 게시**하며, GitHub Release 본문은 워크플로가 PR 본문을 그대로 재사용한다.
 3. **force push / 태그 삭제 / 릴리즈 삭제 전면 금지.** 이미 찍힌 태그와 릴리즈 노트는 기록으로 보존한다.
 4. **back-merge 생략 금지.** release 브랜치는 main 머지 후 반드시 develop 에도 머지한다.
 5. **버전 판정은 반드시 사용자 확인.** 자동 판정 결과만 믿고 진행하지 않는다.
+6. **태그·Release 는 워크플로 자동 생성에 위임.** 로컬/수동으로 `git tag` / `gh release create` 실행 금지. 실패 시 `workflow_dispatch` 로 재실행한다 (§8 복구 절차).
+7. **PR 제목 형식은 `release: vX.Y.Z`.** 워크플로가 제목 prefix 로 릴리즈 PR 을 식별한다. 다른 형식이면 자동화가 발화되지 않는다.
 
 ## 사전 조건
 
@@ -157,32 +159,56 @@ gh pr merge "$PR_NUMBER" --merge --delete-branch=false
 - `--delete-branch=false` 로 release 브랜치를 남겨둔다 (§9 back-merge 이후 일괄 정리).
 - 머지가 실패하면 (충돌 등) 중단하고 사용자에게 알린다. 자동 resolve 금지.
 
-### 8. main 최신 커밋에 태그 생성 + GitHub Release 공개
+### 8. GitHub Actions `release-publish` 워크플로 완료 확인
+
+§7 PR 머지 직후 `pull_request_target: closed` 이벤트로 `.github/workflows/release-publish.yml` 이 자동 실행된다. **로컬에서 `git tag` / `gh release create` 를 직접 호출하지 않는다.**
+
+워크플로가 수행하는 작업:
+1. PR 제목에서 `vX.Y.Z` 추출 + 형식 검증
+2. 머지 커밋 SHA 가 `origin/main` 의 조상인지 검증
+3. PR 본문을 릴리즈 노트로 사용 (비어 있으면 실패)
+4. annotated 태그 `vX.Y.Z` 생성 + push
+5. `gh release create` 로 GitHub Release 공개 (idempotent)
+
+#### 확인
 
 ```bash
-# 1) main 최신화
-git checkout main
-git pull origin main
+# 최근 실행 결과 조회
+gh run list --workflow=release-publish.yml --limit 3
 
-# 2) annotated 태그 생성
-git tag -a vX.Y.Z -m "릴리즈 vX.Y.Z"
+# 진행 중이면 최신 실행을 watch
+gh run watch
 
-# 3) 태그 push
-git push origin vX.Y.Z
-
-# 4) GitHub Release 생성 (릴리즈 노트 필수 포함)
-gh release create vX.Y.Z \
-  --target main \
-  --title "vX.Y.Z" \
-  --notes "$(cat <<'EOF'
-<§6 의 릴리즈 노트 본문 그대로>
-EOF
-)"
+# 태그 / Release 공개 검증
+git fetch --tags origin
+git tag -l vX.Y.Z
+gh release view vX.Y.Z --json url,name,publishedAt
 ```
 
-- 태그는 **반드시 main 의 머지 커밋에** 찍는다 (`git checkout main && git pull` 로 최신화 후).
-- annotated 태그(`-a`) 만 사용한다 (lightweight 금지).
-- `gh release create` 를 생략하면 릴리즈 노트가 공개되지 않는다 → **반드시 생성**.
+- 워크플로 상태가 `completed / success` 여야 §9 back-merge 로 진행한다.
+- 태그가 이미 존재하면 워크플로는 태그 생성을 스킵하고 Release 본문만 갱신한다 (재실행 안전).
+
+#### 워크플로 실패 복구
+
+실패 원인별 대응:
+
+| 증상 | 원인 | 복구 |
+|------|------|------|
+| 워크플로가 아예 실행 안 됨 | PR 제목이 `release:` prefix 아님 / head 가 `release/*` 아님 | 제목/브랜치 수정 후 `workflow_dispatch` 수동 실행 |
+| 버전 추출 실패 | PR 제목에 `vX.Y.Z` 없음 | 제목 정정 후 `workflow_dispatch` 재실행 |
+| PR 본문 비어 있음 → 릴리즈 노트 게이트 실패 | §6 누락 | PR 본문에 릴리즈 노트 추가 → `workflow_dispatch` 재실행 |
+| 네트워크 / API 일시 실패 | GitHub Actions 측 이슈 | 동일 입력으로 `workflow_dispatch` 재실행 |
+
+수동 재실행:
+
+```bash
+gh workflow run release-publish.yml \
+  -f version=vX.Y.Z \
+  -f sha=<머지 커밋 SHA> \
+  -f pr_number=<릴리즈 PR 번호>
+```
+
+> ⚠️ 워크플로 실패를 우회해 로컬에서 `git tag -a && git push origin vX.Y.Z` 를 직접 실행하는 것은 **금지**. 반드시 `workflow_dispatch` 로 재시도한다.
 
 ### 9. `develop` 으로 back-merge
 

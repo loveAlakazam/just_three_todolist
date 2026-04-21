@@ -119,13 +119,13 @@ Just Three 앱의 브랜치 전략은 [git-flow](https://danielkummer.github.io/
 3. `release/vX.Y.Z` 브랜치를 `develop` 에서 분기.
 4. 버전 bump / 메타 업데이트.
 5. **릴리즈 노트 작성** (아래 "릴리즈 노트 필수 규칙" 절 참조).
-6. `release/vX.Y.Z` → `main` 으로 **PR 생성 + `gh pr merge --merge`** (직접 merge/push 금지).
-7. 머지 완료 후 main 최신 커밋에 `vX.Y.Z` annotated 태그 생성 + push.
-8. `gh release create vX.Y.Z` 로 GitHub Release 생성 (릴리즈 노트 본문 반드시 포함).
+6. `release/vX.Y.Z` → `main` 으로 **PR 생성 + `gh pr merge --merge`** (직접 merge/push 금지). PR 제목은 `release: vX.Y.Z` 형식.
+7. **GitHub Actions `release-publish` 워크플로 자동 실행** — 머지 커밋에 `vX.Y.Z` annotated 태그 + GitHub Release 생성.
+8. 워크플로 완료 확인 (`gh run list --workflow=release-publish.yml --limit 1`) → 실패 시 `workflow_dispatch` 로 재실행.
 9. `release/vX.Y.Z` 를 `develop` 으로도 back-merge (버전 정보 동기화).
 10. `release/vX.Y.Z` 브랜치 삭제.
 
-상세 절차는 `.claude/commands/release.md` 참조.
+상세 절차는 `.claude/commands/release.md`, 워크플로 설계는 `.claude/plans/deployment-plan.md` § "CI 자동화" 참조.
 
 ### 릴리즈 노트 필수 규칙
 
