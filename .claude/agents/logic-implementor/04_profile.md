@@ -416,8 +416,8 @@ class ProfileViewModel extends _$ProfileViewModel {
 | `provider` | `text` | NOT NULL | OAuth 제공자 (`'google'` 등) |
 | `provider_user_id` | `text` | NOT NULL | OAuth 제공자의 사용자 식별자 (Google sub 등) |
 | `deleted_at` | `timestamptz` | NOT NULL, default `now()` | 탈퇴 시각 |
-| `reactivation_at` | `timestamptz` | generated always as (`deleted_at + 14 days`) stored | 재가입 가능 시점 (자동 계산) |
 
+- 재가입 가능 시점(`deleted_at + 14일`)은 컬럼으로 저장하지 않고 `check_signin_cooldown()` 에서 계산한다. `timestamptz + interval` 은 IMMUTABLE 이 아니라 generated column 으로 만들 수 없다 (`42P17 generation expression is not immutable`).
 - 인덱스: `(email, deleted_at desc)` + `(provider, provider_user_id, deleted_at desc)`
 - RLS 활성화 + 정책 없음 → 일반 사용자 접근 완전 차단. `service_role` / `security definer` RPC만 접근
 
@@ -427,8 +427,7 @@ create table public.deleted_accounts (
   email         text,                              -- 탈퇴 시점의 이메일 (소문자 정규화 권장)
   provider      text not null,                     -- 'google' 등
   provider_user_id text not null,                  -- Google sub 등
-  deleted_at    timestamptz not null default now(),
-  reactivation_at timestamptz generated always as (deleted_at + interval '14 days') stored
+  deleted_at    timestamptz not null default now()
 );
 
 create index idx_deleted_accounts_email_recent
@@ -457,6 +456,7 @@ declare
   v_provider text;
   v_provider_uid text;
   v_row deleted_accounts%rowtype;
+  v_reactivation timestamptz;
 begin
   -- 현재 사용자 식별. auth.jwt()에서 email + provider identity를 추출.
   v_email := lower(auth.jwt() ->> 'email');
@@ -471,15 +471,21 @@ begin
    order by deleted_at desc
    limit 1;
 
-  if not found or v_row.reactivation_at <= now() then
+  if not found then
+    return query select false, null::timestamptz, 0;
+    return;
+  end if;
+
+  v_reactivation := v_row.deleted_at + interval '14 days';
+  if v_reactivation <= now() then
     return query select false, null::timestamptz, 0;
     return;
   end if;
 
   return query
     select true,
-           v_row.reactivation_at,
-           greatest(0, ceil(extract(epoch from (v_row.reactivation_at - now())) / 86400)::int);
+           v_reactivation,
+           greatest(0, ceil(extract(epoch from (v_reactivation - now())) / 86400)::int);
 end;
 $$;
 
