@@ -28,6 +28,7 @@ declare
   v_provider      text;
   v_provider_uid  text;
   v_row           public.deleted_accounts%rowtype;
+  v_reactivation  timestamptz;
 begin
   v_email := lower(coalesce(auth.jwt() ->> 'email', ''));
   v_provider := coalesce(auth.jwt() -> 'app_metadata' ->> 'provider', '');
@@ -48,8 +49,15 @@ begin
    order by deleted_at desc
    limit 1;
 
-  -- 매칭되는 탈퇴 기록이 없거나 이미 14일이 지났으면 쿨다운 해제.
-  if not found or v_row.reactivation_at <= now() then
+  -- 매칭되는 탈퇴 기록이 없으면 쿨다운 없음.
+  if not found then
+    return query select false, null::timestamptz, 0;
+    return;
+  end if;
+
+  -- 이미 14일이 지났으면 쿨다운 해제.
+  v_reactivation := v_row.deleted_at + interval '14 days';
+  if v_reactivation <= now() then
     return query select false, null::timestamptz, 0;
     return;
   end if;
@@ -58,10 +66,10 @@ begin
   return query
     select
       true,
-      v_row.reactivation_at,
+      v_reactivation,
       greatest(
         0,
-        ceil(extract(epoch from (v_row.reactivation_at - now())) / 86400)::int
+        ceil(extract(epoch from (v_reactivation - now())) / 86400)::int
       );
 end;
 $$;

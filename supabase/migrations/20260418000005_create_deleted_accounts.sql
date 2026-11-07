@@ -17,8 +17,9 @@ create table if not exists public.deleted_accounts (
   email             text,                              -- 탈퇴 시점 이메일 (소문자 정규화)
   provider          text        not null,              -- OAuth 제공자 ('google' 등)
   provider_user_id  text        not null,              -- OAuth 제공자 사용자 식별자 (Google sub 등)
-  deleted_at        timestamptz not null default now(),
-  reactivation_at   timestamptz generated always as (deleted_at + interval '14 days') stored
+  deleted_at        timestamptz not null default now()
+  -- 재가입 가능 시각(deleted_at + 14일)은 check_signin_cooldown() 에서 계산한다.
+  -- `timestamptz + interval` 은 IMMUTABLE 이 아니라 generated column 으로 둘 수 없다.
 );
 
 -- 재가입 시도 시 가장 최근 탈퇴 이력을 빠르게 찾기 위한 인덱스.
